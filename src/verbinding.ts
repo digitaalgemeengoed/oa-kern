@@ -8,7 +8,7 @@ import {
   type ToegankelijkheidAntwoord,
   type WieBenIk,
   type Informatieobject,
-} from "@oa/contract";
+} from "@digitaalgemeengoed/oa-contract";
 
 export interface ObjectMetStaat extends Informatieobject {
   volgnummer: number;

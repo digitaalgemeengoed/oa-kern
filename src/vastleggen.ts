@@ -1,4 +1,4 @@
-import { heeftVermogen, type Adapter, type Afdruk } from "@oa/contract";
+import { heeftVermogen, type Adapter, type Afdruk } from "@digitaalgemeengoed/oa-contract";
 import { opgeschoond } from "./metadateren.js";
 import type { ObjectMetStaat, Verbinding } from "./verbinding.js";
 

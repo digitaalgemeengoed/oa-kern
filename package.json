@@ -1,5 +1,5 @@
 {
-  "name": "@oa/kern",
+  "name": "@digitaalgemeengoed/oa-kern",
   "version": "0.1.0",
   "description": "De assistentkern van de Office Assistent: modules en vastleggen, zonder framework en zonder toestand.",
   "license": "EUPL-1.2",
@@ -12,16 +12,26 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
-    "@oa/contract": "^0.1.0"
+    "@digitaalgemeengoed/oa-contract": "^0.1.0"
   },
   "devDependencies": {
     "linkedom": "^0.18.15",
     "typescript": "5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/digitaalgemeengoed/oa-kern.git"
+  },
+  "homepage": "https://github.com/digitaalgemeengoed/oa-kern#readme",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   }
 }

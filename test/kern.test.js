@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
-import { OBJECTTYPE_DOCUMENT_V1 } from "@oa/contract";
+import { OBJECTTYPE_DOCUMENT_V1 } from "@digitaalgemeengoed/oa-contract";
 import { metadateren, toegankelijkheid, registreer, bepaalStand } from "../dist/index.js";
 
 const parser = (html) => parseHTML(`<!doctype html><html><body>${html}</body></html>`).document;

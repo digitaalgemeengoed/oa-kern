@@ -1,4 +1,4 @@
-import { heeftVermogen, type Adapter, type Bevinding, type Plek } from "@oa/contract";
+import { heeftVermogen, type Adapter, type Bevinding, type Plek } from "@digitaalgemeengoed/oa-contract";
 import type { Verbinding } from "./verbinding.js";
 
 export type Wijziging =

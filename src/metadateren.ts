@@ -1,4 +1,4 @@
-import type { Bevinding, Inhoud, Objecttype } from "@oa/contract";
+import type { Bevinding, Inhoud, Objecttype } from "@digitaalgemeengoed/oa-contract";
 
 /** Een invoerveld, afgeleid uit het schema van het objecttype. */
 export interface Veld {
