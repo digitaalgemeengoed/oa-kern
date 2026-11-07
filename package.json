@@ -1,0 +1,27 @@
+{
+  "name": "@oa/kern",
+  "version": "0.1.0",
+  "description": "De assistentkern van de Office Assistent: modules en vastleggen, zonder framework en zonder toestand.",
+  "license": "EUPL-1.2",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@oa/contract": "^0.1.0"
+  },
+  "devDependencies": {
+    "linkedom": "^0.18.15",
+    "typescript": "5.9.3"
+  }
+}
