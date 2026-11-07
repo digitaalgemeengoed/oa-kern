@@ -8,6 +8,8 @@ import {
   type ToegankelijkheidAntwoord,
   type WieBenIk,
   type Informatieobject,
+  type Zoekvraag,
+  type Zoekantwoord,
 } from "@digitaalgemeengoed/oa-contract";
 
 export interface ObjectMetStaat extends Informatieobject {
@@ -77,6 +79,13 @@ export class Verbinding {
   }
   toegankelijkheid(inhoud: Inhoud, taal?: string) {
     return this.vraag<ToegankelijkheidAntwoord>(LEES.toegankelijkheid, { method: "POST", body: JSON.stringify({ inhoud, taal }) });
+  }
+  zoeken(vraag: Zoekvraag) {
+    return this.vraag<Zoekantwoord>(LEES.zoeken(vraag));
+  }
+  /** Sleutel vernietigen; alleen voor de rol beheerder. */
+  maakOnleesbaar(id: string, reden: string) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.onleesbaar(id), { method: "POST", body: JSON.stringify({ reden }) });
   }
   maakObject(objecttype: string, metadata: Record<string, unknown>, inhoud?: Inhoud) {
     return this.vraag<ObjectMetStaat>(VASTLEG.objecten, { method: "POST", body: JSON.stringify({ objecttype, metadata, inhoud }) });
