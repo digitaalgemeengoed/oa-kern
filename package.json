@@ -1,6 +1,6 @@
 {
   "name": "@digitaalgemeengoed/oa-kern",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "De assistentkern van de Office Assistent: modules en vastleggen, zonder framework en zonder toestand.",
   "license": "EUPL-1.2",
   "type": "module",

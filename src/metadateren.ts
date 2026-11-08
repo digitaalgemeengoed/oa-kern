@@ -45,7 +45,8 @@ export function velden(type: Objecttype): Veld[] {
 export function suggesties(inhoud: Inhoud, huidig: Record<string, unknown>): Record<string, string> {
   const s: Record<string, string> = {};
   if (inhoud.formaat === "html" && !huidig.naam) {
-    const m = inhoud.data.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    // De eerste kop 1; in een presentatie de titel van de eerste dia.
+    const m = inhoud.data.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) ?? inhoud.data.match(/^\s*<section data-oa="dia"><h2[^>]*>([\s\S]*?)<\/h2>/i);
     const titel = m?.[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
     if (titel && titel.length >= 3) s.naam = titel.slice(0, 200);
   }
