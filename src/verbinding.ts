@@ -1,4 +1,5 @@
 import {
+  type Aard,
   LEES,
   VASTLEG,
   type Fout,
@@ -87,8 +88,12 @@ export class Verbinding {
   maakOnleesbaar(id: string, reden: string) {
     return this.vraag<ObjectMetStaat>(VASTLEG.onleesbaar(id), { method: "POST", body: JSON.stringify({ reden }) });
   }
-  maakObject(objecttype: string, metadata: Record<string, unknown>, inhoud?: Inhoud, weergave?: Inhoud) {
-    return this.vraag<ObjectMetStaat>(VASTLEG.objecten, { method: "POST", body: JSON.stringify({ objecttype, metadata, inhoud, weergave }) });
+  maakObject(objecttype: string, metadata: Record<string, unknown>, inhoud?: Inhoud, weergave?: Inhoud, aard?: Aard) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.objecten, { method: "POST", body: JSON.stringify({ objecttype, aard, metadata, inhoud, weergave }) });
+  }
+  /** Zakelijk of persoonlijk; het platform staat in het prototype alleen persoonlijk naar zakelijk toe. */
+  wijzigAard(id: string, aard: Aard) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.aard(id), { method: "PUT", body: JSON.stringify({ aard }) });
   }
   legMetadataVast(id: string, metadata: Record<string, unknown>, verwachteVolgnummer?: number) {
     return this.vraag<ObjectMetStaat>(VASTLEG.metadata(id), { method: "PUT", body: JSON.stringify({ metadata, verwachteVolgnummer }) });

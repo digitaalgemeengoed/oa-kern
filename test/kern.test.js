@@ -93,3 +93,30 @@ test("met bestand-opleveren gaat het origineel als versie, de html als weergave"
   // Zonder het vermogen telt leverBestand niet mee.
   assert.equal((await teBewaren({ ...a, leverBestand: async () => docx })).inhoud.formaat, "html");
 });
+
+test("persoonlijk registreren stuurt geen metadata mee; zakelijk maken via het platform", async () => {
+  const { maakZakelijk } = await import("../dist/index.js");
+  const object = { identificatie: "22222222-2222-2222-2222-222222222222", aard: "persoonlijk", objecttype: { naam: "document", versie: 1 }, versies: [{ nummer: 1 }], volgnummer: 2 };
+  const verzonden = [];
+  const verbinding = {
+    maakObject: async (...a) => (verzonden.push(a), object),
+    wijzigAard: async (id, aard) => ({ ...object, identificatie: id, aard }),
+  };
+  const s = await registreer(nepAdapter("<h1>T</h1>"), verbinding, "document", { naam: "T" }, "persoonlijk");
+  assert.deepEqual(verzonden[0][1], {});
+  assert.equal(verzonden[0][4], "persoonlijk");
+  assert.equal((await maakZakelijk(verbinding, s)).object.aard, "zakelijk");
+});
+
+test("kopie of gewijzigd: vergelijkt de html met de laatste versie", async () => {
+  const { vergelijkMetLaatsteVersie } = await import("../dist/index.js");
+  const { createHash } = await import("node:crypto");
+  const sha = (s) => createHash("sha256").update(s).digest("hex");
+  const html = (data) => ({ formaat: "html", mediaType: "text/html", codering: "tekst", data });
+  const metHtml = { object: { versies: [{ nummer: 1, formaat: "html", sha256: sha("<h1>Nota ë</h1>") }] } };
+  assert.equal(await vergelijkMetLaatsteVersie(metHtml, html("<h1>Nota ë</h1>")), "gelijk");
+  assert.equal(await vergelijkMetLaatsteVersie(metHtml, html("<h1>Nota</h1>")), "afwijkend");
+  const metWeergave = { object: { versies: [{ nummer: 2, formaat: "docx", sha256: "x", weergaven: [{ formaat: "html", sha256: sha("<p>a</p>") }] }] } };
+  assert.equal(await vergelijkMetLaatsteVersie(metWeergave, html("<p>a</p>")), "gelijk");
+  assert.equal(await vergelijkMetLaatsteVersie({ object: null }, html("<p>a</p>")), "onbekend");
+});

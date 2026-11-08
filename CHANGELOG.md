@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.3.2 — 2026-11-09
+
+- `registreer(..., aard)`: zakelijk (standaard) of persoonlijk; persoonlijk zonder metadata. `maakZakelijk(verbinding, stand)` en `Verbinding.wijzigAard`.
+- `vergelijkMetLaatsteVersie(stand, html)`: wijkt het geopende stuk af van de laatste vastgelegde versie (gewijzigd, of een kopie met dezelfde afdruk)? Vergelijkt de html op sha-256.
+- `bepaalStand`: verwijst de afdruk naar een stuk dat je niet kunt zien (persoonlijk van een ander, of uit een andere omgeving), dan geldt het als nieuw, met een melding.
+
 ## 0.3.1 — 2026-11-08
 
 Voorstel voor de naam: zonder kop 1 de titel van de eerste dia van een presentatie.

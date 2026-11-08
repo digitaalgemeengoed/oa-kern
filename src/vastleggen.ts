@@ -1,6 +1,6 @@
-import { heeftVermogen, type Adapter, type Afdruk, type Inhoud } from "@digitaalgemeengoed/oa-contract";
+import { heeftVermogen, type Aard, type Adapter, type Afdruk, type Inhoud } from "@digitaalgemeengoed/oa-contract";
 import { opgeschoond } from "./metadateren.js";
-import type { ObjectMetStaat, Verbinding } from "./verbinding.js";
+import { VerbindingsFout, type ObjectMetStaat, type Verbinding } from "./verbinding.js";
 
 export interface Stand {
   /** Het object in het platform, of null als het stuk nog niet is geregistreerd. */
@@ -17,8 +17,21 @@ export async function bepaalStand(adapter: Adapter, verbinding: Verbinding): Pro
   }
   const afdruk = await adapter.leesAfdruk();
   if (!afdruk) return { object: null, afdruk: null };
-  const object = await verbinding.object(afdruk.identificatie);
-  return { object, afdruk };
+  try {
+    const object = await verbinding.object(afdruk.identificatie);
+    return { object, afdruk };
+  } catch (e) {
+    // Een persoonlijk stuk van iemand anders bestaat voor jou niet (404),
+    // net als een stuk uit een andere omgeving. Dan als nieuw stuk.
+    if (e instanceof VerbindingsFout && e.status === 404) {
+      return {
+        object: null,
+        afdruk: null,
+        terugval: "Dit bestand verwijst naar een stuk dat je niet kunt zien: het is van iemand anders persoonlijk, of het komt uit een andere omgeving. Je kunt het als nieuw stuk vastleggen.",
+      };
+    }
+    throw e;
+  }
 }
 
 /**
@@ -41,9 +54,16 @@ export async function teBewaren(adapter: Adapter): Promise<{ inhoud: Inhoud; wee
  * versie vast. De adapter schrijft de identificatie in het bestand, zodat het
  * stuk herkenbaar blijft als het het platform verlaat.
  */
-export async function registreer(adapter: Adapter, verbinding: Verbinding, objecttype: string, metadata: Record<string, unknown>): Promise<Stand> {
+export async function registreer(
+  adapter: Adapter,
+  verbinding: Verbinding,
+  objecttype: string,
+  metadata: Record<string, unknown>,
+  aard: Aard = "zakelijk",
+): Promise<Stand> {
   const { inhoud, weergave } = await teBewaren(adapter);
-  const object = await verbinding.maakObject(objecttype, opgeschoond(metadata), inhoud, weergave);
+  // Een persoonlijk stuk heeft geen metadata (het platform weigert die).
+  const object = await verbinding.maakObject(objecttype, aard === "persoonlijk" ? {} : opgeschoond(metadata), inhoud, weergave, aard);
   const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) {
     await adapter.schrijfAfdruk(afdruk);
@@ -67,4 +87,34 @@ export async function legMetadataVast(verbinding: Verbinding, stand: Stand, meta
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
   const object = await verbinding.legMetadataVast(stand.object.identificatie, opgeschoond(metadata), stand.object.volgnummer);
   return { ...stand, object };
+}
+
+/**
+ * Een persoonlijk stuk zakelijk maken. Het platform zet een kopie in het
+ * archief; de metadata volgt daarna (het stuk heet tot dan onvolledig).
+ */
+export async function maakZakelijk(verbinding: Verbinding, stand: Stand): Promise<Stand> {
+  if (!stand.object) throw new Error("Het stuk is nog niet vastgelegd.");
+  const object = await verbinding.wijzigAard(stand.object.identificatie, "zakelijk");
+  return { ...stand, object };
+}
+
+/**
+ * Is dit hetzelfde stuk als de laatste vastgelegde versie? Het paneel vraagt
+ * het bij openen: wijkt de inhoud af, dan is het stuk sindsdien gewijzigd,
+ * of het is een kopie (Opslaan als) met dezelfde afdruk. Dat laatste kan de
+ * assistent niet zelf zien; de medewerker kiest.
+ *
+ * Vergelijkt de html van nu met de html-weergave van de laatste versie (of
+ * de versie zelf als die html is), op sha-256.
+ */
+export async function vergelijkMetLaatsteVersie(stand: Stand, html: Inhoud): Promise<"gelijk" | "afwijkend" | "onbekend"> {
+  const laatste = stand.object?.versies.at(-1);
+  if (!laatste || html.formaat !== "html") return "onbekend";
+  const bewaard = laatste.formaat === "html" ? laatste.sha256 : laatste.weergaven?.find((w) => w.formaat === "html")?.sha256;
+  if (!bewaard || !globalThis.crypto?.subtle) return "onbekend";
+  const bytes = html.codering === "base64" ? Uint8Array.from(atob(html.data), (c) => c.charCodeAt(0)) : new TextEncoder().encode(html.data);
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
+  return hex === bewaard ? "gelijk" : "afwijkend";
 }
