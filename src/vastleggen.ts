@@ -1,4 +1,4 @@
-import { heeftVermogen, type Adapter, type Afdruk } from "@digitaalgemeengoed/oa-contract";
+import { heeftVermogen, type Adapter, type Afdruk, type Inhoud } from "@digitaalgemeengoed/oa-contract";
 import { opgeschoond } from "./metadateren.js";
 import type { ObjectMetStaat, Verbinding } from "./verbinding.js";
 
@@ -22,13 +22,28 @@ export async function bepaalStand(adapter: Adapter, verbinding: Verbinding): Pro
 }
 
 /**
+ * Wat er wordt vastgelegd. Kan de werkomgeving het bestand zelf opleveren
+ * (docx, odt …), dan is dat de versie en gaat de html mee als weergave: het
+ * origineel blijft bewaard (Archiefwet, MDTO), de html is waarmee de
+ * assistent en de zoekindex werken. Anders is de html de versie.
+ */
+export async function teBewaren(adapter: Adapter): Promise<{ inhoud: Inhoud; weergave?: Inhoud }> {
+  const html = await adapter.leverInhoud();
+  if (adapter.leverBestand && heeftVermogen(adapter.werkomgeving(), "bestand-opleveren")) {
+    const bestand = await adapter.leverBestand();
+    if (bestand.formaat !== html.formaat) return { inhoud: bestand, weergave: html };
+  }
+  return { inhoud: html };
+}
+
+/**
  * Registreren: het platform kent de identificatie toe en legt de eerste
  * versie vast. De adapter schrijft de identificatie in het bestand, zodat het
  * stuk herkenbaar blijft als het het platform verlaat.
  */
 export async function registreer(adapter: Adapter, verbinding: Verbinding, objecttype: string, metadata: Record<string, unknown>): Promise<Stand> {
-  const inhoud = await adapter.leverInhoud();
-  const object = await verbinding.maakObject(objecttype, opgeschoond(metadata), inhoud);
+  const { inhoud, weergave } = await teBewaren(adapter);
+  const object = await verbinding.maakObject(objecttype, opgeschoond(metadata), inhoud, weergave);
   const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) {
     await adapter.schrijfAfdruk(afdruk);
@@ -40,8 +55,8 @@ export async function registreer(adapter: Adapter, verbinding: Verbinding, objec
 /** Een nieuwe versie vastleggen; ongewijzigde inhoud levert geen versie op. */
 export async function legVersieVast(adapter: Adapter, verbinding: Verbinding, stand: Stand): Promise<Stand> {
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
-  const inhoud = await adapter.leverInhoud();
-  const object = await verbinding.voegVersieToe(stand.object.identificatie, inhoud);
+  const { inhoud, weergave } = await teBewaren(adapter);
+  const object = await verbinding.voegVersieToe(stand.object.identificatie, inhoud, weergave);
   const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) await adapter.schrijfAfdruk(afdruk);
   return { ...stand, object, afdruk };

@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.3.0 — 2026-11-08
+
+`teBewaren`: kan de werkomgeving het bestand opleveren, dan wordt dat de versie en gaat de html mee als weergave. Registreren en versie vastleggen gebruiken dit.
+
 ## 0.2.0 — 2026-11-07
 
 `Verbinding.zoeken` en `Verbinding.maakOnleesbaar`.

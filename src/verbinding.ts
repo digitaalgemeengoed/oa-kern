@@ -87,13 +87,13 @@ export class Verbinding {
   maakOnleesbaar(id: string, reden: string) {
     return this.vraag<ObjectMetStaat>(VASTLEG.onleesbaar(id), { method: "POST", body: JSON.stringify({ reden }) });
   }
-  maakObject(objecttype: string, metadata: Record<string, unknown>, inhoud?: Inhoud) {
-    return this.vraag<ObjectMetStaat>(VASTLEG.objecten, { method: "POST", body: JSON.stringify({ objecttype, metadata, inhoud }) });
+  maakObject(objecttype: string, metadata: Record<string, unknown>, inhoud?: Inhoud, weergave?: Inhoud) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.objecten, { method: "POST", body: JSON.stringify({ objecttype, metadata, inhoud, weergave }) });
   }
   legMetadataVast(id: string, metadata: Record<string, unknown>, verwachteVolgnummer?: number) {
     return this.vraag<ObjectMetStaat>(VASTLEG.metadata(id), { method: "PUT", body: JSON.stringify({ metadata, verwachteVolgnummer }) });
   }
-  voegVersieToe(id: string, inhoud: Inhoud) {
-    return this.vraag<ObjectMetStaat>(VASTLEG.versies(id), { method: "POST", body: JSON.stringify({ inhoud }) });
+  voegVersieToe(id: string, inhoud: Inhoud, weergave?: Inhoud) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.versies(id), { method: "POST", body: JSON.stringify({ inhoud, weergave }) });
   }
 }

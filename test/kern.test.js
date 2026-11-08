@@ -80,3 +80,16 @@ test("registreren schrijft de afdruk; zonder dat vermogen zegt de assistent het"
   const s2 = await registreer(arm, verbinding, "document", { naam: "T" });
   assert.match(s2.terugval, /niet in het bestand bewaren/);
 });
+
+test("met bestand-opleveren gaat het origineel als versie, de html als weergave", async () => {
+  const { teBewaren } = await import("../dist/index.js");
+  const a = nepAdapter("<h1>Nota</h1>");
+  assert.deepEqual(await teBewaren(a), { inhoud: { formaat: "html", mediaType: "text/html", codering: "tekst", data: "<h1>Nota</h1>" } });
+  const docx = { formaat: "docx", mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", codering: "base64", data: "UEsDBA==" };
+  const metBestand = { ...a, werkomgeving: () => ({ ...a.werkomgeving(), vermogens: [...a.werkomgeving().vermogens, "bestand-opleveren"] }), leverBestand: async () => docx };
+  const r = await teBewaren(metBestand);
+  assert.equal(r.inhoud.formaat, "docx");
+  assert.equal(r.weergave.formaat, "html");
+  // Zonder het vermogen telt leverBestand niet mee.
+  assert.equal((await teBewaren({ ...a, leverBestand: async () => docx })).inhoud.formaat, "html");
+});
