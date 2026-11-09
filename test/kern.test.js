@@ -120,3 +120,25 @@ test("kopie of gewijzigd: vergelijkt de html met de laatste versie", async () =>
   assert.equal(await vergelijkMetLaatsteVersie(metWeergave, html("<p>a</p>")), "gelijk");
   assert.equal(await vergelijkMetLaatsteVersie({ object: null }, html("<p>a</p>")), "onbekend");
 });
+
+test("anonimiseren: overal toevoegen en bevestigen bij de laatste versie", async () => {
+  const { anonimiseren } = await import("../dist/index.js");
+  const { createHash } = await import("node:crypto");
+  const html = { formaat: "html", mediaType: "text/html", codering: "tekst", data: "<p>Sanne en Sannes, Sanne.</p>" };
+  const gevonden = { inhoud: html, tekst: "Sanne en Sannes, Sanne.", blokken: [], treffers: [], standaard: [], motor: "nep" };
+  const nieuw = anonimiseren.overal(gevonden, "Sanne", "naam");
+  assert.deepEqual(nieuw.map((t) => [t.begin, t.eind]), [[0, 5], [17, 22]]);
+  const sha = createHash("sha256").update(html.data).digest("hex");
+  const stand = { afdruk: null, object: { identificatie: "o-1", versies: [{ nummer: 3, formaat: "html", sha256: sha }] } };
+  const aanroepen = [];
+  const verbinding = {
+    anonimiserenToepassen: async (inhoud, t) => (aanroepen.push(["toepassen", t.length]), { inhoud: { ...inhoud, data: "<p>[naam]</p>" }, overzicht: { naam: 2 } }),
+    legAnonimiseringVast: async (id, nummer, inhoud, overzicht) => (aanroepen.push(["vastleggen", id, nummer, overzicht]), { identificatie: id, versies: [] }),
+  };
+  const r = await anonimiseren.bevestig(verbinding, stand, gevonden, nieuw);
+  assert.deepEqual(aanroepen, [["toepassen", 2], ["vastleggen", "o-1", 3, { naam: 2 }]]);
+  assert.deepEqual(r.overzicht, { naam: 2 });
+  const gewijzigd = { ...gevonden, inhoud: { ...html, data: "<p>anders</p>" } };
+  await assert.rejects(anonimiseren.bevestig(verbinding, stand, gewijzigd, nieuw), /wijkt af van versie 3/);
+  await assert.rejects(anonimiseren.bevestig(verbinding, { afdruk: null, object: null }, gevonden, nieuw), /eerst vast/);
+});

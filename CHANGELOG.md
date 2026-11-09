@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.3.3 — 2026-11-09
+
+Module `anonimiseren`: `vind` (treffers bij de html van het stuk), `overal` (dezelfde tekst overal als treffer van de medewerker) en `bevestig` (afschermen en vastleggen bij de laatste versie; weigert als het stuk sindsdien is gewijzigd). `vergelijkMetLaatsteVersie` kijkt alleen naar de gewone weergave.
+
 ## 0.3.2 — 2026-11-09
 
 - `registreer(..., aard)`: zakelijk (standaard) of persoonlijk; persoonlijk zonder metadata. `maakZakelijk(verbinding, stand)` en `Verbinding.wijzigAard`.

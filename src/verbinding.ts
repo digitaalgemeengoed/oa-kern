@@ -1,5 +1,8 @@
 import {
   type Aard,
+  type AnonimiseerAntwoord,
+  type PiiSoort,
+  type ToepassenAntwoord,
   LEES,
   VASTLEG,
   type Fout,
@@ -80,6 +83,15 @@ export class Verbinding {
   }
   toegankelijkheid(inhoud: Inhoud, taal?: string) {
     return this.vraag<ToegankelijkheidAntwoord>(LEES.toegankelijkheid, { method: "POST", body: JSON.stringify({ inhoud, taal }) });
+  }
+  anonimiseren(inhoud: Inhoud) {
+    return this.vraag<AnonimiseerAntwoord>(LEES.anonimiseren, { method: "POST", body: JSON.stringify({ inhoud }) });
+  }
+  anonimiserenToepassen(inhoud: Inhoud, treffers: { begin: number; eind: number; soort: PiiSoort }[]) {
+    return this.vraag<ToepassenAntwoord>(LEES.anonimiserenToepassen, { method: "POST", body: JSON.stringify({ inhoud, treffers }) });
+  }
+  legAnonimiseringVast(id: string, nummer: number, inhoud: Inhoud, overzicht: Partial<Record<PiiSoort, number>>) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.anonimisering(id, nummer), { method: "POST", body: JSON.stringify({ inhoud, overzicht }) });
   }
   zoeken(vraag: Zoekvraag) {
     return this.vraag<Zoekantwoord>(LEES.zoeken(vraag));

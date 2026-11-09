@@ -111,7 +111,7 @@ export async function maakZakelijk(verbinding: Verbinding, stand: Stand): Promis
 export async function vergelijkMetLaatsteVersie(stand: Stand, html: Inhoud): Promise<"gelijk" | "afwijkend" | "onbekend"> {
   const laatste = stand.object?.versies.at(-1);
   if (!laatste || html.formaat !== "html") return "onbekend";
-  const bewaard = laatste.formaat === "html" ? laatste.sha256 : laatste.weergaven?.find((w) => w.formaat === "html")?.sha256;
+  const bewaard = laatste.formaat === "html" ? laatste.sha256 : laatste.weergaven?.find((w) => w.formaat === "html" && (w.soort ?? "weergave") === "weergave")?.sha256;
   if (!bewaard || !globalThis.crypto?.subtle) return "onbekend";
   const bytes = html.codering === "base64" ? Uint8Array.from(atob(html.data), (c) => c.charCodeAt(0)) : new TextEncoder().encode(html.data);
   const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
