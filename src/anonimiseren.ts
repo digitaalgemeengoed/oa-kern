@@ -177,12 +177,25 @@ export function kanInDocument(adapter: Adapter): boolean {
 export async function begin(adapter: Adapter, verbinding: Verbinding, stand: Stand): Promise<{ stand: Stand; bronversie: number }> {
   if (!stand.object) throw new Error("Leg het stuk eerst vast: anonimiseren maakt een nieuwe versie, en het origineel blijft bewaard.");
   // Staan er al voorvertoningen in het document, dan loopt er een sessie: het origineel is de laatste versie.
-  if (adapter.leesPiiPlekken && (await adapter.leesPiiPlekken()).some((p) => p.voorvertoning)) {
-    return { stand, bronversie: stand.object.versies.at(-1)!.nummer };
-  }
+  if (await loopt(adapter, verbinding, stand)) return { stand, bronversie: stand.object.versies.at(-1)!.nummer };
   let s = stand;
   if ((await vergelijkMetLaatsteVersie(stand, await adapter.leverInhoud())) !== "gelijk") s = await legVersieVast(adapter, verbinding, stand);
   return { stand: s, bronversie: s.object!.versies.at(-1)!.nummer };
+}
+
+/**
+ * Loopt er een sessie? Dan staan er plaatshouders in het document die in het
+ * register nog voorvertoning zijn. Niet elke werkomgeving kan dat zelf in het
+ * document bijhouden; het register weet het altijd.
+ */
+async function loopt(adapter: Adapter, verbinding: Verbinding, stand: Stand): Promise<boolean> {
+  if (!adapter.leesPiiPlekken || !stand.object) return false;
+  const plekken = await adapter.leesPiiPlekken();
+  if (!plekken.length) return false;
+  if (plekken.some((p) => p.voorvertoning)) return true;
+  const register = await verbinding.piiRegister(stand.object.identificatie);
+  const voorlopig = new Set(register.registraties.filter((r) => r.status === "voorvertoning").map((r) => r.plaatshouder));
+  return plekken.some((p) => voorlopig.has(p.plaatshouder));
 }
 
 function kaartUit(r: { plaatshouder: string; soort: PiiSoort; categorie: PiiCategorie }, status: PiiKaart["status"], bron: Treffer["bron"], extra: Partial<PiiKaart> = {}): PiiKaart {
@@ -267,8 +280,9 @@ export async function vindEnMarkeer(adapter: Adapter, verbinding: Verbinding, st
 export async function hervat(adapter: Adapter, verbinding: Verbinding, stand: Stand): Promise<Sessie | null> {
   if (!stand.object || !kanInDocument(adapter)) return null;
   const plekken = await adapter.leesPiiPlekken!();
-  if (!plekken.some((p) => p.voorvertoning)) return null;
   const register = await verbinding.piiRegister(stand.object.identificatie);
+  const voorlopig = new Set(register.registraties.filter((r) => r.status === "voorvertoning").map((r) => r.plaatshouder));
+  if (!plekken.some((p) => p.voorvertoning || voorlopig.has(p.plaatshouder))) return null;
   const kaarten = register.registraties.map((r) => kaartUit(r, r.status === "voorvertoning" ? "voorvertoning" : "bevestigd", r.bron));
   return { bronversie: stand.object.versies.at(-1)!.nummer, kaarten: verdeelPlekken(kaarten, plekken).filter((k) => k.plekken.length) };
 }
@@ -321,8 +335,10 @@ export async function laatStaan(adapter: Adapter, verbinding: Verbinding, stand:
   if (waarde === undefined) throw new Error("De oorspronkelijke waarde is niet te achterhalen.");
   const weg = plek ? [plek] : kaart.plekken;
   await adapter.herstelPii!(weg.map((p) => ({ plek: p, waarde: waarde! })));
-  const rest = kaart.plekken.filter((p) => !weg.includes(p));
-  if (rest.length) return { ...sessie, kaarten: sessie.kaarten.map((k) => (k === kaart ? { ...k, plekken: rest, waarde } : k)) };
+  // Wat er echt nog staat (niet elke werkomgeving kan één plek terugzetten).
+  const nu = await adapter.leesPiiPlekken!();
+  const rest = nu.filter((p) => p.plaatshouder === kaart.plaatshouder).map((p) => p.plek);
+  if (rest.length) return { ...sessie, kaarten: verdeelPlekken(sessie.kaarten.map((k) => (k === kaart ? { ...k, waarde } : k)), nu) };
   if (kaart.status === "voorvertoning") await verbinding.vervallenPii(id, [kaart.plaatshouder]);
   const blijft: PiiKaart = { ...kaart, sleutel: sleutelVan(kaart.soort, waarde), plaatshouder: null, status: "laat-staan", plekken: [], waarde };
   return { ...sessie, kaarten: sessie.kaarten.map((k) => (k === kaart ? blijft : k)) };
@@ -335,7 +351,8 @@ export async function laatStaan(adapter: Adapter, verbinding: Verbinding, stand:
  */
 export async function bevestigInDocument(adapter: Adapter, verbinding: Verbinding, stand: Stand, sessie: Sessie): Promise<{ stand: Stand; sessie: Sessie }> {
   const plekken = await adapter.leesPiiPlekken!();
-  const behouden = [...new Set(plekken.filter((p) => p.voorvertoning).map((p) => p.plaatshouder))];
+  // Alles wat nog in het document staat; het platform maakt alleen de voorvertoningen definitief.
+  const behouden = [...new Set(plekken.map((p) => p.plaatshouder))];
   await adapter.zetPiiDefinitief?.();
   const { inhoud, weergave } = await teBewaren(adapter);
   const object = await verbinding.bevestigPii(stand.object!.identificatie, { inhoud, weergave, bronversie: sessie.bronversie, behouden });
@@ -354,7 +371,7 @@ export function raadSoort(x: string): PiiSoort {
   if (/\d{4}\s?[a-z]{2}\b/.test(t) || /weg\b|straat|laan\b|plein|gracht|kade\b|singel|pad \d|pad\b/.test(t)) return "adres";
   if (/€\s?\d|euro|mln\b|bedrag/.test(t)) return "bedrag";
   if (/\d{1,2}[\s-](jan|feb|mrt|maart|apr|mei|jun|jul|aug|sep|okt|nov|dec)|\d{2}-\d{2}-\d{4}/.test(t)) return "datum";
-  if (/gezondheid|ziekte|medisch|hart|diagnose|aandoening|stoornis|therapie|handicap|chronisch|mantelzorg/.test(t)) return "gezondheid";
+  if (/gezondheid|ziekte|medisch|hart|diagnose|aandoening|stoornis|therapie|handicap|chronisch|mantelzorg|diabetes|kanker|depressie|ziekenhuis|medicijn|zwanger/.test(t)) return "gezondheid";
   if (/religie|geloof|kerk|moskee|synagoge/.test(t)) return "religie";
   if (/etniciteit|afkomst|huidskleur/.test(t)) return "etniciteit";
   if (/biometr|vingerafdruk|gezichtsherkenning/.test(t)) return "biometrie";

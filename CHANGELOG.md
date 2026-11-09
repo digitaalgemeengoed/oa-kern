@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.4.1 — 2026-11-09
+
+- Of een plaatshouder nog een voorvertoning is, leidt de kern af uit het register: niet elke werkomgeving kan dat in het document bijhouden (rekenbladen, presentaties, Collabora).
+- Na terugzetten leest de kern de plekken opnieuw: een werkomgeving die niet één plek kan terugzetten (Collabora), blijft zo kloppen.
+- `raadSoort` herkent meer gezondheidswoorden.
+
 ## 0.4.0 — 2026-11-09
 
 Anonimiseren in het document: `begin` (het origineel eerst als versie), `vindEnMarkeer` (registreren als voorvertoning en in het document vervangen; opnieuw zoeken laat staan wat de medewerker liet staan), `hervat` (een lopende sessie na heropenen), `voegToe` (selectie of "toch anonimiseren"), `laatStaan` (alle plekken of één), `bevestigInDocument` (nieuwe versie), `zetVersieTerug`, `raadSoort` en `kanInDocument`. Na elke versie schrijft de kern het versienummer als documenteigenschap Versie.
