@@ -297,13 +297,14 @@ export async function voegToe(
   verbinding: Verbinding,
   stand: Stand,
   sessie: Sessie,
-  v: { waarde: string; soort: PiiSoort; bron?: Treffer["bron"] },
+  v: { waarde: string; soort: PiiSoort; bron?: Treffer["bron"]; categorie?: PiiCategorie },
 ): Promise<Sessie> {
   const waarde = normaal(v.waarde);
   if (waarde.length < 2) throw new Error("Selecteer eerst de tekst die je wilt anonimiseren.");
   const id = stand.object!.identificatie;
   const bron = v.bron ?? "medewerker";
-  const { plaatshouders } = await verbinding.registreerPii(id, [{ soort: v.soort, waarde, bron }], true);
+  const afwijkend = v.categorie && v.categorie !== PII_SOORT[v.soort].categorie ? { categorie: v.categorie } : {};
+  const { plaatshouders } = await verbinding.registreerPii(id, [{ soort: v.soort, waarde, bron, ...afwijkend }], true);
   const r = plaatshouders[0]!;
   const nieuw = await adapter.markeerPii!([{ van: waarde, plaatshouder: r.plaatshouder, ppl: PII_CATEGORIE[r.categorie].ppl, voorvertoning: true }]);
   if (!nieuw.length && r.nieuw) {
@@ -315,6 +316,34 @@ export async function voegToe(
   const kaart = bestaand ?? kaartUit(r, "voorvertoning", bron, { waarde });
   const plekken = await adapter.leesPiiPlekken!();
   return { ...sessie, kaarten: verdeelPlekken([...zonder, { ...kaart, waarde: kaart.waarde ?? waarde }], plekken) };
+}
+
+/**
+ * Een andere grondslag (AVG-categorie) voor een kaart. Een voorvertoning gaat
+ * in het register over naar de sleutel van die categorie (het platform toetst
+ * of je het origineel mag lezen) en krijgt in het document de kleur van het
+ * nieuwe niveau. Bij een kaart die blijft staan geldt de keuze als je haar
+ * toch anonimiseert. Een bevestigd gegeven kan niet: de grondslag ligt vast.
+ */
+export async function wijzigCategorie(adapter: Adapter, verbinding: Verbinding, stand: Stand, sessie: Sessie, sleutel: string, categorie: PiiCategorie): Promise<Sessie> {
+  const kaart = sessie.kaarten.find((k) => k.sleutel === sleutel);
+  if (!kaart || kaart.categorie === categorie) return sessie;
+  const ppl = PII_CATEGORIE[categorie].ppl;
+  const vervang = (k: PiiKaart, plekken?: PiiPlek[]) => {
+    const kaarten = sessie.kaarten.map((x) => (x === kaart ? { ...k, categorie, ppl } : x));
+    return { ...sessie, kaarten: plekken ? verdeelPlekken(kaarten, plekken) : kaarten };
+  };
+  if (kaart.status === "laat-staan" || !kaart.plaatshouder) return vervang(kaart);
+  if (kaart.status === "bevestigd") throw new Error("De grondslag van een bevestigd gegeven ligt vast. Zet het terug (De-anonimiseer) en anonimiseer het opnieuw met de juiste grondslag.");
+  await verbinding.wijzigPiiCategorie(stand.object!.identificatie, kaart.plaatshouder, categorie);
+  if (adapter.herkleurPii) {
+    await adapter.herkleurPii(kaart.plaatshouder, ppl);
+    return vervang(kaart);
+  }
+  // Zonder herkleuren: de plekken terugzetten (als platte plaatshouder) en opnieuw markeren.
+  await adapter.herstelPii!(kaart.plekken.map((plek) => ({ plek, waarde: kaart.plaatshouder! })));
+  await adapter.markeerPii!([{ van: kaart.plaatshouder, plaatshouder: kaart.plaatshouder, ppl, voorvertoning: true }]);
+  return vervang(kaart, await adapter.leesPiiPlekken!());
 }
 
 /**

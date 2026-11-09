@@ -108,6 +108,13 @@ export class Verbinding {
   vervallenPii(id: string, plaatshouders: string[]) {
     return this.vraag<PiiRegister>(VASTLEG.piiVervallen(id), { method: "POST", body: JSON.stringify({ plaatshouders }) });
   }
+  /** Een voorvertoning in een andere AVG-categorie (grondslag); de plaatshouder blijft. */
+  wijzigPiiCategorie(id: string, plaatshouder: string, categorie: PiiCategorie) {
+    return this.vraag<{ plaatshouder: string; soort: PiiSoort; categorie: PiiCategorie }>(VASTLEG.piiCategorie(id), {
+      method: "POST",
+      body: JSON.stringify({ plaatshouder, categorie }),
+    });
+  }
   /** Bevestigen: register definitief en het geanonimiseerde document als nieuwe versie. */
   bevestigPii(id: string, v: { inhoud: Inhoud; weergave?: Inhoud; bronversie: number; behouden: string[] }) {
     return this.vraag<ObjectMetStaat>(VASTLEG.piiBevestig(id), { method: "POST", body: JSON.stringify(v) });

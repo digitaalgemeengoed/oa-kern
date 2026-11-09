@@ -195,7 +195,7 @@ test("anonimiseren in het document: voorvertoning, laat staan, toevoegen, bevest
     markeerPii: async (ms) => {
       const uit = [];
       for (const m of [...ms].sort((a, b) => b.van.length - a.van.length))
-        tekst = tekst.replace(new RegExp(`(?<![\\p{L}{:])${m.van}(?![\\p{L}}])`, "gu"), () => {
+        tekst = tekst.replace(new RegExp(`(?<![\\p{L}{:])${m.van.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}}])`, "gu"), () => {
           const p = `p${++volg}`;
           if (m.voorvertoning) pv.add(p);
           uit.push({ plek: p, plaatshouder: m.plaatshouder, voorvertoning: m.voorvertoning });
@@ -245,6 +245,12 @@ test("anonimiseren in het document: voorvertoning, laat staan, toevoegen, bevest
     piiRegister: async () => ({ registraties: register, niveau: 1 }),
     vervallenPii: async (id, ph) => (aanroepen.push(["vervallen", ph]), register.splice(register.findIndex((x) => x.plaatshouder === ph[0]), 1)),
     onthulPii: async (id, ph) => ({ waarden: ph.map((p) => ({ plaatshouder: p, waarde: register.find((x) => x.plaatshouder === p).waarde })) }),
+    wijzigPiiCategorie: async (id, ph, categorie) => {
+      aanroepen.push(["categorie", ph, categorie]);
+      const r = register.find((x) => x.plaatshouder === ph);
+      r.categorie = categorie;
+      return { plaatshouder: ph, soort: r.soort, categorie };
+    },
     bevestigPii: async (id, v) => (aanroepen.push(["bevestig", v.bronversie, v.behouden, v.inhoud.data]), object([{ nummer: 1 }, { nummer: 2, soort: "anonimisering", bronversie: 1 }])),
   };
   const stand = { afdruk: null, object: object([{ nummer: 1, formaat: "html", sha256: sha(tekst) }]) };
@@ -264,6 +270,43 @@ test("anonimiseren in het document: voorvertoning, laat staan, toevoegen, bevest
   s = await anonimiseren.voegToe(adapter, verbinding, stand, s, { waarde: "3 mei", soort: "datum", bron: "patroon" });
   assert.ok(tekst.endsWith("Op {p5:[DATUM 1]}.</p>"));
   assert.equal(s.kaarten.filter((k) => k.status === "laat-staan").length, 1); // het adres
+
+  // Een andere grondslag: zonder herkleuren terugzetten en opnieuw markeren, met het nieuwe niveau.
+  const markeerVoor = adapter.markeerPii;
+  const kleuren = [];
+  adapter.markeerPii = async (ms) => (kleuren.push(...ms.map((m) => [m.plaatshouder, m.ppl, m.voorvertoning])), markeerVoor(ms));
+  s = await anonimiseren.wijzigCategorie(adapter, verbinding, stand, s, "[PERSOON 2]", "c2");
+  adapter.markeerPii = markeerVoor;
+  assert.deepEqual(aanroepen.at(-1), ["categorie", "[PERSOON 2]", "c2"]);
+  assert.deepEqual(kleuren, [["[PERSOON 2]", 2, true]]);
+  assert.equal(tekst, "<p>{p1:[PERSOON 1]} belde {p6:[PERSOON 2]}. Jan woont op de Kruisweg 1. Op {p5:[DATUM 1]}.</p>", "Jan op de gelaten plek blijft staan");
+  const jan = s.kaarten.find((k) => k.plaatshouder === "[PERSOON 2]");
+  assert.deepEqual([jan.categorie, jan.ppl, jan.plekken], ["c2", 2, ["p6"]]);
+  // Met herkleuren: alleen de kleur.
+  const herkleurd = [];
+  s = await anonimiseren.wijzigCategorie({ ...adapter, herkleurPii: async (ph, ppl) => herkleurd.push([ph, ppl]) }, verbinding, stand, s, "[DATUM 1]", "c3");
+  assert.deepEqual(herkleurd, [["[DATUM 1]", 3]]);
+  assert.equal(s.kaarten.find((k) => k.plaatshouder === "[DATUM 1]").ppl, 3);
+  // Een kaart die blijft staan: alleen de keuze onthouden.
+  const adres = s.kaarten.find((k) => k.status === "laat-staan");
+  s = await anonimiseren.wijzigCategorie(adapter, verbinding, stand, s, adres.sleutel, "c2");
+  assert.equal(s.kaarten.find((k) => k.sleutel === adres.sleutel).categorie, "c2");
+  assert.deepEqual(aanroepen.filter((x) => x[0] === "categorie").length, 2);
+  // Bij toch anonimiseren gaat de keuze mee naar het register.
+  const registreer = verbinding.registreerPii;
+  let mee;
+  verbinding.registreerPii = async (id, items, v) => ((mee = items), registreer(id, items, v));
+  const metAdres = await anonimiseren.voegToe(adapter, verbinding, stand, s, { waarde: "Kruisweg 1", soort: "adres", categorie: "c2" });
+  verbinding.registreerPii = registreer;
+  assert.deepEqual(mee, [{ soort: "adres", waarde: "Kruisweg 1", bron: "medewerker", categorie: "c2" }]);
+  const nieuwAdres = metAdres.kaarten.find((k) => k.waarde === "Kruisweg 1" && k.plaatshouder);
+  s = await anonimiseren.laatStaan(adapter, verbinding, stand, metAdres, nieuwAdres.sleutel);
+  assert.ok(tekst.includes("Kruisweg 1"));
+  // Bevestigd: de grondslag ligt vast.
+  await assert.rejects(
+    anonimiseren.wijzigCategorie(adapter, verbinding, stand, { ...s, kaarten: [{ ...jan, status: "bevestigd" }] }, "[PERSOON 2]", "c1"),
+    /ligt vast/,
+  );
 
   const r = await anonimiseren.bevestigInDocument(adapter, verbinding, stand, s);
   const b = aanroepen.find((x) => x[0] === "bevestig");

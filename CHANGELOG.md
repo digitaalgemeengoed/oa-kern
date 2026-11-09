@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.4.3 — 2026-11-09
+
+- `anonimiseren.wijzigCategorie(adapter, verbinding, stand, sessie, sleutel, categorie)`: een andere grondslag voor een kaart. Een voorvertoning gaat in het register naar de sleutel van die categorie en krijgt in het document de kleur van het nieuwe niveau (`herkleurPii`, of terugzetten en opnieuw markeren). Een kaart die blijft staan onthoudt de keuze; een bevestigd gegeven kan niet.
+- `voegToe(…, { categorie })`: meteen met een andere grondslag.
+- `Verbinding.wijzigPiiCategorie(id, plaatshouder, categorie)`.
+
 ## 0.4.2 — 2026-11-09
 
 Beoordelen stuurt het bestand mee als de werkomgeving het kan opleveren (liefst als docx, xlsx of pptx), voor de controles die in de html niet te zien zijn. Te groot (meer dan ongeveer 19 MB) of lukt het niet: alleen de html, met een advies.
