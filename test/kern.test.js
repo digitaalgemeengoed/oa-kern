@@ -47,6 +47,9 @@ test("een ander metadatamodel (RGBZ): rollen, datum, getal, element en volgorde 
   const type = { naam: "document", versie: 2, titel: "Document", status: "actief", vervaldatum: null, schema: schemaUitConfig(c) };
   const v = metadateren.velden(type);
   assert.equal(v[0].naam, "titel", "de volgorde van het beheerportaal");
+  // Zoals uit de database (jsonb): de sleutels van het schema in een andere volgorde.
+  const geschud = { ...type, schema: { ...type.schema, properties: Object.fromEntries(Object.entries(type.schema.properties).reverse()) } };
+  assert.deepEqual(metadateren.velden(geschud).map((x) => x.naam), v.map((x) => x.naam));
   assert.equal(v.find((x) => x.naam === "creatiedatum").soort, "datum");
   assert.equal(v.find((x) => x.naam === "beschrijving").soort, "lange-tekst");
   assert.equal(v.find((x) => x.naam === "bedrag").soort, "getal");

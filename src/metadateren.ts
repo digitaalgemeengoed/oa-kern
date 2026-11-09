@@ -57,8 +57,14 @@ export function velden(type: Objecttype): Veld[] {
       standaard: e.default,
     };
   });
-  // Een gemeente die zelf de volgorde koos (beheerportaal): die volgorde. Anders verplichte eerst.
-  if (s["x-oa-model"]) return lijst;
+  // Een gemeente die zelf de volgorde koos (beheerportaal): die volgorde. De
+  // database bewaart de sleutels van het schema in een eigen volgorde; de
+  // keuze zelf (x-oa-config) heeft de goede. Anders verplichte eerst.
+  if (s["x-oa-model"]) {
+    const config = (type.schema as { "x-oa-config"?: { velden?: { sleutel: string }[] } })["x-oa-config"];
+    const plaats = new Map((config?.velden ?? []).map((v, i) => [v.sleutel, i] as const));
+    return [...lijst].sort((a, b) => (plaats.get(a.naam) ?? 1e9) - (plaats.get(b.naam) ?? 1e9));
+  }
   return [...lijst.filter((v) => v.verplicht), ...lijst.filter((v) => !v.verplicht)];
 }
 

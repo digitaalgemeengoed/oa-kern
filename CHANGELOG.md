@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.5.1 — 2026-11-09
+
+De velden van een metadatamodel uit het beheerportaal in de volgorde die de gemeente koos, ook als de database de sleutels van het schema anders bewaart.
+
 ## 0.5.0 — 2026-11-09
 
 Metadatamodellen uit het beheerportaal:
