@@ -1,4 +1,4 @@
-import { heeftVermogen, type Adapter, type Bevinding, type Plek } from "@digitaalgemeengoed/oa-contract";
+import { heeftVermogen, type Adapter, type Bevinding, type Inhoud, type Plek } from "@digitaalgemeengoed/oa-contract";
 import type { Verbinding } from "./verbinding.js";
 
 export type Wijziging =
@@ -58,10 +58,40 @@ export function wijzigingVoor(b: Bevinding, antwoord?: string): Wijziging | null
   return null;
 }
 
-/** Beoordelen: leest alleen, legt niets vast. */
+/** Zo groot mag het bestand (base64) zijn; de integratielaag neemt tot 30 MB aan, met de html erbij. */
+export const MAX_BESTAND_BASE64 = 26 * 1024 * 1024;
+
+/**
+ * Beoordelen: leest alleen, legt niets vast. Kan de werkomgeving het bestand
+ * opleveren, dan gaat dat mee (liefst als docx, xlsx of pptx): daarin ziet de
+ * controle wat de html niet laat zien, zoals titel, taal en contrast. Lukt
+ * dat niet, dan alleen de html.
+ */
 export async function beoordeel(adapter: Adapter, verbinding: Verbinding): Promise<{ bevindingen: Bevinding[]; gecontroleerd: string[] }> {
   const inhoud = await adapter.leverInhoud();
-  return verbinding.toegankelijkheid(inhoud);
+  let bestand: Inhoud | undefined;
+  let teGroot = false;
+  if (adapter.leverBestand && heeftVermogen(adapter.werkomgeving(), "bestand-opleveren")) {
+    try {
+      const b = await adapter.leverBestand("ooxml");
+      if (b.codering === "base64" && b.data.length <= MAX_BESTAND_BASE64) bestand = b;
+      else teGroot = b.data.length > MAX_BESTAND_BASE64;
+    } catch {
+      /* Zonder bestand: alleen de html. */
+    }
+  }
+  const r = await verbinding.toegankelijkheid(inhoud, undefined, bestand);
+  if (teGroot) {
+    r.bevindingen.push({
+      id: "tg-te-groot",
+      module: "toegankelijkheid",
+      ernst: "advies",
+      regel: "—",
+      melding: "Het bestand is te groot voor de uitgebreide controle (titel, taal, contrast). De inhoud is wel beoordeeld.",
+      bron: "bestand",
+    });
+  }
+  return r;
 }
 
 /**

@@ -85,8 +85,8 @@ export class Verbinding {
   gebeurtenissen(id: string) {
     return this.vraag<Gebeurtenis[]>(LEES.gebeurtenissen(id));
   }
-  toegankelijkheid(inhoud: Inhoud, taal?: string) {
-    return this.vraag<ToegankelijkheidAntwoord>(LEES.toegankelijkheid, { method: "POST", body: JSON.stringify({ inhoud, taal }) });
+  toegankelijkheid(inhoud: Inhoud, taal?: string, bestand?: Inhoud) {
+    return this.vraag<ToegankelijkheidAntwoord>(LEES.toegankelijkheid, { method: "POST", body: JSON.stringify({ inhoud, taal, bestand }) });
   }
   anonimiseren(inhoud: Inhoud) {
     return this.vraag<AnonimiseerAntwoord>(LEES.anonimiseren, { method: "POST", body: JSON.stringify({ inhoud }) });

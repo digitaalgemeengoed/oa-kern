@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.4.2 — 2026-11-09
+
+Beoordelen stuurt het bestand mee als de werkomgeving het kan opleveren (liefst als docx, xlsx of pptx), voor de controles die in de html niet te zien zijn. Te groot (meer dan ongeveer 19 MB) of lukt het niet: alleen de html, met een advies.
+
 ## 0.4.1 — 2026-11-09
 
 - Of een plaatshouder nog een voorvertoning is, leidt de kern af uit het register: niet elke werkomgeving kan dat in het document bijhouden (rekenbladen, presentaties, Collabora).
