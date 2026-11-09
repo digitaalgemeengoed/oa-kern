@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.6.0 — 2026-11-09
+
+Bij bevestigen meet de assistent wat de medewerker deed (`meetSessie`) en stuurt die meting mee met `bevestigPii`: wat werd bevestigd, gelaten (met reden) of zelf toegevoegd, met vorm, lengte en signaalwoord, zonder waarden. `laatStaan` neemt een reden aan; een gewijzigde grondslag wordt onthouden (`oorspronkelijk`). Hangt af van oa-contract 0.6.0.
+
 ## 0.5.1 — 2026-11-09
 
 De velden van een metadatamodel uit het beheerportaal in de volgorde die de gemeente koos, ook als de database de sleutels van het schema anders bewaart.

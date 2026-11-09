@@ -1,8 +1,15 @@
 import {
+  afgerond,
   heeftVermogen,
+  lengteVan,
   PII_CATEGORIE,
   PII_SOORT,
+  signaalVoor,
+  vormVan,
   type Adapter,
+  type AnonimiseringsMeting,
+  type LaatStaanReden,
+  type MetingItem,
   type AnonimiseerAntwoord,
   type Inhoud,
   type PiiCategorie,
@@ -152,6 +159,12 @@ export interface PiiKaart {
   waarde?: string;
   /** De plekken in het document. */
   plekken: string[];
+  /** Voor de meting: de medewerker liet het voorstel staan, met reden. */
+  gelaten?: { reden?: LaatStaanReden };
+  /** Voor de meting: hoeveel plekken de medewerker liet staan ("alleen hier"). */
+  plekkenGelaten?: number;
+  /** Voor de meting: de categorie die de assistent voorstelde, als de medewerker de grondslag wijzigde. */
+  oorspronkelijk?: PiiCategorie;
 }
 
 export interface Sessie {
@@ -159,6 +172,8 @@ export interface Sessie {
   bronversie: number;
   kaarten: PiiKaart[];
   motor?: string;
+  /** De soorten die standaard worden geanonimiseerd (voor de meting). */
+  standaard?: PiiSoort[];
 }
 
 const normaal = (w: string) => w.replace(/\s+/g, " ").trim();
@@ -273,7 +288,7 @@ export async function vindEnMarkeer(adapter: Adapter, verbinding: Verbinding, st
       waarde: normaal(t.tekst),
       plekken: [],
     });
-  return { stand: b.stand, sessie: { bronversie: b.bronversie, kaarten: gesorteerd, motor: g.motor } };
+  return { stand: b.stand, sessie: { bronversie: b.bronversie, kaarten: gesorteerd, motor: g.motor, standaard: g.standaard } };
 }
 
 /** Een sessie die nog loopt (voorvertoningen in het document) weer oppakken, bv. na heropenen. */
@@ -330,7 +345,7 @@ export async function wijzigCategorie(adapter: Adapter, verbinding: Verbinding, 
   if (!kaart || kaart.categorie === categorie) return sessie;
   const ppl = PII_CATEGORIE[categorie].ppl;
   const vervang = (k: PiiKaart, plekken?: PiiPlek[]) => {
-    const kaarten = sessie.kaarten.map((x) => (x === kaart ? { ...k, categorie, ppl } : x));
+    const kaarten = sessie.kaarten.map((x) => (x === kaart ? { ...k, categorie, ppl, oorspronkelijk: k.oorspronkelijk ?? k.categorie } : x));
     return { ...sessie, kaarten: plekken ? verdeelPlekken(kaarten, plekken) : kaarten };
   };
   if (kaart.status === "laat-staan" || !kaart.plaatshouder) return vervang(kaart);
@@ -351,7 +366,15 @@ export async function wijzigCategorie(adapter: Adapter, verbinding: Verbinding, 
  * één plek. Een voorvertoning zonder plekken vervalt; een bevestigd gegeven
  * terugzetten mag alleen binnen het eigen niveau (het platform toetst).
  */
-export async function laatStaan(adapter: Adapter, verbinding: Verbinding, stand: Stand, sessie: Sessie, sleutel: string, plek?: string): Promise<Sessie> {
+export async function laatStaan(
+  adapter: Adapter,
+  verbinding: Verbinding,
+  stand: Stand,
+  sessie: Sessie,
+  sleutel: string,
+  plek?: string,
+  reden?: LaatStaanReden,
+): Promise<Sessie> {
   const kaart = sessie.kaarten.find((k) => k.sleutel === sleutel);
   if (!kaart?.plaatshouder) return sessie;
   const id = stand.object!.identificatie;
@@ -367,9 +390,18 @@ export async function laatStaan(adapter: Adapter, verbinding: Verbinding, stand:
   // Wat er echt nog staat (niet elke werkomgeving kan één plek terugzetten).
   const nu = await adapter.leesPiiPlekken!();
   const rest = nu.filter((p) => p.plaatshouder === kaart.plaatshouder).map((p) => p.plek);
-  if (rest.length) return { ...sessie, kaarten: verdeelPlekken(sessie.kaarten.map((k) => (k === kaart ? { ...k, waarde } : k)), nu) };
+  if (rest.length) return { ...sessie, kaarten: verdeelPlekken(sessie.kaarten.map((k) => (k === kaart ? { ...k, waarde, plekkenGelaten: (k.plekkenGelaten ?? 0) + weg.length } : k)), nu) };
   if (kaart.status === "voorvertoning") await verbinding.vervallenPii(id, [kaart.plaatshouder]);
-  const blijft: PiiKaart = { ...kaart, sleutel: sleutelVan(kaart.soort, waarde), plaatshouder: null, status: "laat-staan", plekken: [], waarde };
+  const blijft: PiiKaart = {
+    ...kaart,
+    sleutel: sleutelVan(kaart.soort, waarde),
+    plaatshouder: null,
+    status: "laat-staan",
+    plekken: [],
+    waarde,
+    // Alleen een voorstel dat nog niet was bevestigd telt mee in de meting.
+    ...(kaart.status === "voorvertoning" ? { gelaten: { ...(reden ? { reden } : {}) }, plekkenGelaten: kaart.plekken.length } : {}),
+  };
   return { ...sessie, kaarten: sessie.kaarten.map((k) => (k === kaart ? blijft : k)) };
 }
 
@@ -384,7 +416,9 @@ export async function bevestigInDocument(adapter: Adapter, verbinding: Verbindin
   const behouden = [...new Set(plekken.map((p) => p.plaatshouder))];
   await adapter.zetPiiDefinitief?.();
   const { inhoud, weergave } = await teBewaren(adapter);
-  const object = await verbinding.bevestigPii(stand.object!.identificatie, { inhoud, weergave, bronversie: sessie.bronversie, behouden });
+  const html = weergave?.formaat === "html" ? weergave.data : inhoud.formaat === "html" ? inhoud.data : "";
+  const meting = meetSessie(sessie, behouden, platteTekst(html));
+  const object = await verbinding.bevestigPii(stand.object!.identificatie, { inhoud, weergave, bronversie: sessie.bronversie, behouden, ...(meting.items.length ? { meting } : {}) });
   const nieuw = await naVersie(adapter, stand, object);
   const kaarten = sessie.kaarten.map((k) => (k.status === "voorvertoning" && k.plaatshouder && behouden.includes(k.plaatshouder) ? { ...k, status: "bevestigd" as const } : k));
   return { stand: nieuw, sessie: { ...sessie, kaarten } };
@@ -422,4 +456,49 @@ export async function zetVersieTerug(adapter: Adapter, verbinding: Verbinding, s
   const html = await verbinding.versieHtml(id, laatste);
   await adapter.vervangInhoud({ formaat: "html", mediaType: "text/html", codering: "tekst", data: html });
   return naVersie(adapter, stand, object);
+}
+
+/** Tekst uit html, voor het signaalwoord vlak voor een gegeven. */
+function platteTekst(html: string): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * De meting bij bevestigen: per gegeven wat er gebeurde, zonder de waarde.
+ * Meegeteld: voorstellen die zijn bevestigd of gelaten, en wat de medewerker
+ * zelf toevoegde. Niet: wat al eerder was bevestigd, of wat nooit werd
+ * voorgesteld (soorten die standaard uit staan en die niemand aanraakte).
+ */
+export function meetSessie(sessie: Sessie, behouden: string[], tekst: string): AnonimiseringsMeting {
+  const items: MetingItem[] = [];
+  const blijft = new Set(behouden);
+  for (const k of sessie.kaarten) {
+    let uitkomst: MetingItem["uitkomst"] | null = null;
+    if (k.status === "voorvertoning" && k.plaatshouder && blijft.has(k.plaatshouder)) uitkomst = k.bron === "medewerker" ? "toegevoegd" : "bevestigd";
+    else if (k.status === "laat-staan" && k.gelaten && k.bron !== "medewerker") uitkomst = "gelaten";
+    if (!uitkomst) continue;
+    // Het woord vlak voor de plaatshouder (of, als het bleef staan, voor de waarde).
+    const zoek = uitkomst === "gelaten" ? k.waarde : k.plaatshouder;
+    const i = zoek ? tekst.indexOf(zoek) : -1;
+    const signaal = i > 0 ? signaalVoor(tekst.slice(Math.max(0, i - 80), i)) : undefined;
+    items.push({
+      soort: k.soort,
+      bron: k.bron,
+      ...(k.score !== undefined ? { score: afgerond(k.score) } : {}),
+      uitkomst,
+      ...(uitkomst === "gelaten" && k.gelaten?.reden ? { reden: k.gelaten.reden } : {}),
+      standaard: sessie.standaard ? sessie.standaard.includes(k.soort) : true,
+      ...(k.oorspronkelijk && k.oorspronkelijk !== k.categorie ? { categorie: { van: k.oorspronkelijk, naar: k.categorie } } : {}),
+      ...(k.waarde ? { vorm: vormVan(k.waarde), lengte: lengteVan(k.waarde) } : {}),
+      ...(signaal ? { signaal } : {}),
+      plekken: uitkomst === "gelaten" ? (k.plekkenGelaten ?? 0) : k.plekken.length,
+      ...(uitkomst !== "gelaten" && k.plekkenGelaten ? { plekkenGelaten: k.plekkenGelaten } : {}),
+    });
+  }
+  return { ...(sessie.motor ? { motor: sessie.motor } : {}), items };
 }

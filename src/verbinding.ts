@@ -1,6 +1,7 @@
 import {
   type Aard,
   type AnonimiseerAntwoord,
+  type AnonimiseringsMeting,
   type PiiCategorie,
   type PiiInvoer,
   type PiiOnthuld,
@@ -117,7 +118,7 @@ export class Verbinding {
     });
   }
   /** Bevestigen: register definitief en het geanonimiseerde document als nieuwe versie. */
-  bevestigPii(id: string, v: { inhoud: Inhoud; weergave?: Inhoud; bronversie: number; behouden: string[] }) {
+  bevestigPii(id: string, v: { inhoud: Inhoud; weergave?: Inhoud; bronversie: number; behouden: string[]; meting?: AnonimiseringsMeting }) {
     return this.vraag<ObjectMetStaat>(VASTLEG.piiBevestig(id), { method: "POST", body: JSON.stringify(v) });
   }
   /** Bevestigde gegevens terugzetten: de waarden, binnen het eigen niveau. */

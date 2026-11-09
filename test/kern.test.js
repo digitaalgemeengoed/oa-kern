@@ -272,7 +272,7 @@ test("anonimiseren in het document: voorvertoning, laat staan, toevoegen, bevest
       r.categorie = categorie;
       return { plaatshouder: ph, soort: r.soort, categorie };
     },
-    bevestigPii: async (id, v) => (aanroepen.push(["bevestig", v.bronversie, v.behouden, v.inhoud.data]), object([{ nummer: 1 }, { nummer: 2, soort: "anonimisering", bronversie: 1 }])),
+    bevestigPii: async (id, v) => (aanroepen.push(["bevestig", v.bronversie, v.behouden, v.inhoud.data, v.meting]), object([{ nummer: 1 }, { nummer: 2, soort: "anonimisering", bronversie: 1 }])),
   };
   const stand = { afdruk: null, object: object([{ nummer: 1, formaat: "html", sha256: sha(tekst) }]) };
 
@@ -332,10 +332,43 @@ test("anonimiseren in het document: voorvertoning, laat staan, toevoegen, bevest
   const r = await anonimiseren.bevestigInDocument(adapter, verbinding, stand, s);
   const b = aanroepen.find((x) => x[0] === "bevestig");
   assert.deepEqual(b.slice(0, 3), ["bevestig", 1, ["[PERSOON 1]", "[PERSOON 2]", "[DATUM 1]"]]);
+  // De meting: geen waarden, wel vorm, uitkomst, gewijzigde grondslag en gelaten plekken.
+  const meting = b[4];
+  assert.equal(meting.motor, "nep");
+  assert.deepEqual(meting.items.map((x) => [x.soort, x.uitkomst, x.standaard, x.vorm, x.categorie?.naar ?? null, x.plekkenGelaten ?? 0]), [
+    ["naam", "bevestigd", true, "Aa a Aa", null, 0],
+    ["naam", "bevestigd", true, "Aa", "c2", 1],
+    ["datum", "bevestigd", false, "9 a", "c3", 0],
+  ]);
+  assert.equal(JSON.stringify(meting).includes("Sanne"), false, "geen waarden in de meting");
   assert.equal(r.stand.object.versies.at(-1).nummer, 2);
   assert.equal(eigenschappen.Versie, "2");
   assert.equal(plekken().some((p) => p.voorvertoning), false);
   assert.equal(anonimiseren.raadSoort("06-12345678"), "telefoon");
   assert.equal(anonimiseren.raadSoort("mantelzorg aan uw moeder"), "gezondheid");
   assert.equal(anonimiseren.raadSoort("Klaas Bakker"), "naam");
+});
+
+test("meting: gelaten met reden, toegevoegd, signaalwoord; wat nooit werd voorgesteld telt niet", async () => {
+  const { anonimiseren } = await import("../dist/index.js");
+  const sessie = {
+    bronversie: 1,
+    motor: "OpenAnonymiser 1.2",
+    standaard: ["naam", "telefoon"],
+    kaarten: [
+      { sleutel: "[TELEFOON 1]", plaatshouder: "[TELEFOON 1]", soort: "telefoon", categorie: "c1", ppl: 1, status: "voorvertoning", bron: "medewerker", waarde: "06-51209934", plekken: ["p3"] },
+      { sleutel: "naam\u0000Havenkade", plaatshouder: null, soort: "naam", categorie: "c1", ppl: 1, status: "laat-staan", bron: "model", score: 0.612, waarde: "Havenkade", plekken: [], gelaten: { reden: "geen-persoonsgegeven" }, plekkenGelaten: 2 },
+      { sleutel: "datum\u00003 mei", plaatshouder: null, soort: "datum", categorie: "c1", ppl: 1, status: "laat-staan", bron: "patroon", waarde: "3 mei", plekken: [] },
+      { sleutel: "[PERSOON 1]", plaatshouder: "[PERSOON 1]", soort: "naam", categorie: "c1", ppl: 1, status: "bevestigd", bron: "model", plekken: ["p1"] },
+    ],
+  };
+  const tekst = "Geachte heer [PERSOON 1], u woont aan de Havenkade. Bel ons; u gaf als telefoon [TELEFOON 1] op 3 mei.";
+  const m = anonimiseren.meetSessie(sessie, ["[TELEFOON 1]", "[PERSOON 1]"], tekst);
+  assert.deepEqual(m, {
+    motor: "OpenAnonymiser 1.2",
+    items: [
+      { soort: "telefoon", bron: "medewerker", uitkomst: "toegevoegd", standaard: true, vorm: "9-9", lengte: "middel", signaal: "telefoon", plekken: 1 },
+      { soort: "naam", bron: "model", score: 0.61, uitkomst: "gelaten", reden: "geen-persoonsgegeven", standaard: true, vorm: "Aa", lengte: "middel", plekken: 2 },
+    ],
+  });
 });
