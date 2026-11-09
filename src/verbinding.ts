@@ -76,8 +76,9 @@ export class Verbinding {
   wieBenIk() {
     return this.vraag<WieBenIk>(LEES.wieBenIk);
   }
-  objecttype(naam: string) {
-    return this.vraag<Objecttype>(LEES.objecttype(naam));
+  /** Het actieve objecttype, of de versie waarmee een stuk is vastgelegd. */
+  objecttype(naam: string, versie?: number) {
+    return this.vraag<Objecttype>(LEES.objecttype(naam, versie));
   }
   object(id: string) {
     return this.vraag<ObjectMetStaat>(LEES.object(id));

@@ -1,5 +1,15 @@
 # Wijzigingen
 
+## 0.5.0 — 2026-11-09
+
+Metadatamodellen uit het beheerportaal:
+
+- `metadateren.velden`: ook datum en getal; per veld de rol en het element ("RGBZ titel"); bij een model uit het portaal de volgorde die de gemeente koos.
+- `suggesties(inhoud, huidig, type?)`: de titel en de taal via de rol, met de standaard van het model (bv. "dut" bij RGBZ).
+- `bevindingen`: de regel noemt het element van het gekozen model.
+- `opgeschoond(metadata, type?)` en `registreer`/`legMetadataVast(…, type?)`: een getalveld gaat als getal.
+- `Verbinding.objecttype(naam, versie?)`.
+
 ## 0.4.3 — 2026-11-09
 
 - `anonimiseren.wijzigCategorie(adapter, verbinding, stand, sessie, sleutel, categorie)`: een andere grondslag voor een kaart. Een voorvertoning gaat in het register naar de sleutel van die categorie en krijgt in het document de kleur van het nieuwe niveau (`herkleurPii`, of terugzetten en opnieuw markeren). Een kaart die blijft staan onthoudt de keuze; een bevestigd gegeven kan niet.

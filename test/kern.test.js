@@ -40,6 +40,24 @@ test("de naam wordt voorgesteld uit de eerste kop", () => {
   assert.equal(s.naam, "Raadsvoorstel fietsen");
 });
 
+test("een ander metadatamodel (RGBZ): rollen, datum, getal, element en volgorde van de gemeente", async () => {
+  const { schemaUitConfig, standaardConfig } = await import("@digitaalgemeengoed/oa-contract");
+  const c = standaardConfig("rgbz");
+  c.velden.push({ sleutel: "bedrag", aan: true, verplicht: false, label: "Bedrag", eigen: { type: "getal" } });
+  const type = { naam: "document", versie: 2, titel: "Document", status: "actief", vervaldatum: null, schema: schemaUitConfig(c) };
+  const v = metadateren.velden(type);
+  assert.equal(v[0].naam, "titel", "de volgorde van het beheerportaal");
+  assert.equal(v.find((x) => x.naam === "creatiedatum").soort, "datum");
+  assert.equal(v.find((x) => x.naam === "beschrijving").soort, "lange-tekst");
+  assert.equal(v.find((x) => x.naam === "bedrag").soort, "getal");
+  assert.equal(v.find((x) => x.naam === "titel").rol, "titel");
+  assert.equal(v.find((x) => x.naam === "titel").element, "RGBZ titel");
+  const s = metadateren.suggesties({ formaat: "html", data: "<h1>Notitie duinpad</h1>" }, {}, type);
+  assert.deepEqual(s, { titel: "Notitie duinpad", taal: "dut" });
+  assert.equal(metadateren.bevindingen(type, { titel: "x" }).find((b) => b.id === "md-auteur").regel, "RGBZ auteur");
+  assert.deepEqual(metadateren.opgeschoond({ bedrag: "12,50", titel: "x", leeg: "" }, type), { bedrag: 12.5, titel: "x" });
+});
+
 test("ontbrekende verplichte velden worden bevindingen", () => {
   const b = metadateren.bevindingen(OBJECTTYPE_DOCUMENT_V1, { naam: "X" });
   assert.deepEqual(b.map((x) => x.id), ["md-informatiecategorie", "md-vertrouwelijkheid"]);

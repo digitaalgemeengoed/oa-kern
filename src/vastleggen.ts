@@ -1,4 +1,4 @@
-import { heeftVermogen, type Aard, type Adapter, type Afdruk, type Inhoud } from "@digitaalgemeengoed/oa-contract";
+import { heeftVermogen, type Aard, type Adapter, type Afdruk, type Inhoud, type Objecttype } from "@digitaalgemeengoed/oa-contract";
 import { opgeschoond } from "./metadateren.js";
 import { VerbindingsFout, type ObjectMetStaat, type Verbinding } from "./verbinding.js";
 
@@ -60,10 +60,11 @@ export async function registreer(
   objecttype: string,
   metadata: Record<string, unknown>,
   aard: Aard = "zakelijk",
+  type?: Objecttype,
 ): Promise<Stand> {
   const { inhoud, weergave } = await teBewaren(adapter);
   // Een persoonlijk stuk heeft geen metadata (het platform weigert die).
-  const object = await verbinding.maakObject(objecttype, aard === "persoonlijk" ? {} : opgeschoond(metadata), inhoud, weergave, aard);
+  const object = await verbinding.maakObject(objecttype, aard === "persoonlijk" ? {} : opgeschoond(metadata, type), inhoud, weergave, aard);
   const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) {
     await adapter.schrijfAfdruk(afdruk);
@@ -96,9 +97,9 @@ export async function schrijfVersienummer(adapter: Adapter, versie: number): Pro
 }
 
 /** Metadata vastleggen tegen de stand die de medewerker zag. */
-export async function legMetadataVast(verbinding: Verbinding, stand: Stand, metadata: Record<string, unknown>): Promise<Stand> {
+export async function legMetadataVast(verbinding: Verbinding, stand: Stand, metadata: Record<string, unknown>, type?: Objecttype): Promise<Stand> {
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
-  const object = await verbinding.legMetadataVast(stand.object.identificatie, opgeschoond(metadata), stand.object.volgnummer);
+  const object = await verbinding.legMetadataVast(stand.object.identificatie, opgeschoond(metadata, type), stand.object.volgnummer);
   return { ...stand, object };
 }
 
