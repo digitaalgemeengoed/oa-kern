@@ -1,6 +1,10 @@
 import {
   type Aard,
   type AnonimiseerAntwoord,
+  type PiiCategorie,
+  type PiiInvoer,
+  type PiiOnthuld,
+  type PiiRegister,
   type PiiSoort,
   type ToepassenAntwoord,
   LEES,
@@ -92,6 +96,24 @@ export class Verbinding {
   }
   legAnonimiseringVast(id: string, nummer: number, inhoud: Inhoud, overzicht: Partial<Record<PiiSoort, number>>) {
     return this.vraag<ObjectMetStaat>(VASTLEG.anonimisering(id, nummer), { method: "POST", body: JSON.stringify({ inhoud, overzicht }) });
+  }
+  /** Persoonsgegevens versleuteld registreren; dezelfde waarde krijgt dezelfde plaatshouder. */
+  registreerPii(id: string, items: PiiInvoer[]) {
+    return this.vraag<{ plaatshouders: { plaatshouder: string; soort: PiiSoort; categorie: PiiCategorie; nieuw: boolean }[] }>(VASTLEG.pii(id), {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    });
+  }
+  piiRegister(id: string) {
+    return this.vraag<PiiRegister>(LEES.pii(id));
+  }
+  /** De oorspronkelijke waarden; het platform toetst het niveau (PPL) en legt het inzien vast. */
+  onthulPii(id: string, plaatshouders: string[]) {
+    return this.vraag<{ waarden: PiiOnthuld[] }>(VASTLEG.piiOnthul(id), { method: "POST", body: JSON.stringify({ plaatshouders }) });
+  }
+  /** De sleutel van een categorie vernietigen (alleen beheerder): die waarden zijn daarna onleesbaar. */
+  vernietigPii(id: string, categorie: PiiCategorie, reden: string) {
+    return this.vraag<PiiRegister>(VASTLEG.piiVernietig(id), { method: "POST", body: JSON.stringify({ categorie, reden }) });
   }
   zoeken(vraag: Zoekvraag) {
     return this.vraag<Zoekantwoord>(LEES.zoeken(vraag));

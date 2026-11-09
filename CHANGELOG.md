@@ -1,5 +1,17 @@
 # Wijzigingen
 
+## 0.3.4 — 2026-11-09
+
+Anonimiseren bij de bron. `anonimiseren.bevestig(adapter, verbinding, stand, gekozen)`:
+
+1. registreert de gekozen gegevens versleuteld in het register (dezelfde waarde één keer);
+2. laat de werkomgeving ze in het document zelf vervangen door hun plaatshouder (`vervangTekst`);
+3. legt het resultaat vast als nieuwe versie.
+
+Geeft de registraties, het aantal vervangingen en hoe vaak een waarde nog in het document staat (bijvoorbeeld over opmaak heen). `kanBijDeBron(adapter)` zegt of de werkomgeving het kan. Nieuw op `Verbinding`: `registreerPii`, `piiRegister`, `onthulPii`, `vernietigPii`.
+
+Het stuk hoeft niet meer gelijk te zijn aan de laatste versie: wat de medewerker ziet, wordt de nieuwe versie.
+
 ## 0.3.3 — 2026-11-09
 
 Module `anonimiseren`: `vind` (treffers bij de html van het stuk), `overal` (dezelfde tekst overal als treffer van de medewerker) en `bevestig` (afschermen en vastleggen bij de laatste versie; weigert als het stuk sindsdien is gewijzigd). `vergelijkMetLaatsteVersie` kijkt alleen naar de gewone weergave.

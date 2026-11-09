@@ -121,24 +121,61 @@ test("kopie of gewijzigd: vergelijkt de html met de laatste versie", async () =>
   assert.equal(await vergelijkMetLaatsteVersie({ object: null }, html("<p>a</p>")), "onbekend");
 });
 
-test("anonimiseren: overal toevoegen en bevestigen bij de laatste versie", async () => {
+test("anonimiseren: overal toevoegen", async () => {
   const { anonimiseren } = await import("../dist/index.js");
-  const { createHash } = await import("node:crypto");
-  const html = { formaat: "html", mediaType: "text/html", codering: "tekst", data: "<p>Sanne en Sannes, Sanne.</p>" };
-  const gevonden = { inhoud: html, tekst: "Sanne en Sannes, Sanne.", blokken: [], treffers: [], standaard: [], motor: "nep" };
+  const gevonden = { tekst: "Sanne en Sannes, Sanne.", blokken: [], treffers: [], standaard: [], motor: "nep" };
   const nieuw = anonimiseren.overal(gevonden, "Sanne", "naam");
   assert.deepEqual(nieuw.map((t) => [t.begin, t.eind]), [[0, 5], [17, 22]]);
-  const sha = createHash("sha256").update(html.data).digest("hex");
-  const stand = { afdruk: null, object: { identificatie: "o-1", versies: [{ nummer: 3, formaat: "html", sha256: sha }] } };
+});
+
+test("anonimiseren bij de bron: registreren, in het document vervangen, nieuwe versie", async () => {
+  const { anonimiseren } = await import("../dist/index.js");
+  let doc = "<p>Sanne de Boer belde. Sanne, <b>06-1234</b> en <i>Sanne</i> de Boer.</p>";
   const aanroepen = [];
-  const verbinding = {
-    anonimiserenToepassen: async (inhoud, t) => (aanroepen.push(["toepassen", t.length]), { inhoud: { ...inhoud, data: "<p>[naam]</p>" }, overzicht: { naam: 2 } }),
-    legAnonimiseringVast: async (id, nummer, inhoud, overzicht) => (aanroepen.push(["vastleggen", id, nummer, overzicht]), { identificatie: id, versies: [] }),
+  const adapter = {
+    werkomgeving: () => ({ id: "t", naam: "t", vermogens: ["inhoud-leveren", "inhoud-vervangen", "melden", "tekst-vervangen"] }),
+    leverInhoud: async () => ({ formaat: "html", mediaType: "text/html", codering: "tekst", data: doc }),
+    vervangTekst: async (paren) => {
+      aanroepen.push(["vervang", paren]);
+      let n = 0;
+      for (const p of [...paren].sort((x, y) => y.van.length - x.van.length))
+        doc = doc.replace(new RegExp(`(?<![\\p{L}])${p.van}(?![\\p{L}])`, "gu"), () => (n++, p.naar));
+      return n;
+    },
   };
-  const r = await anonimiseren.bevestig(verbinding, stand, gevonden, nieuw);
-  assert.deepEqual(aanroepen, [["toepassen", 2], ["vastleggen", "o-1", 3, { naam: 2 }]]);
-  assert.deepEqual(r.overzicht, { naam: 2 });
-  const gewijzigd = { ...gevonden, inhoud: { ...html, data: "<p>anders</p>" } };
-  await assert.rejects(anonimiseren.bevestig(verbinding, stand, gewijzigd, nieuw), /wijkt af van versie 3/);
-  await assert.rejects(anonimiseren.bevestig(verbinding, { afdruk: null, object: null }, gevonden, nieuw), /eerst vast/);
+  const verbinding = {
+    registreerPii: async (id, items) => (
+      aanroepen.push(["registreer", id, items]),
+      { plaatshouders: items.map((it, i) => ({ plaatshouder: `[${it.soort === "telefoon" ? "TELEFOON" : "PERSOON"} ${i + 1}]`, soort: it.soort, categorie: "c1", nieuw: true })) }
+    ),
+    voegVersieToe: async (id, inhoud) => (aanroepen.push(["versie", id, inhoud.data]), { identificatie: id, objecttype: { naam: "nota" }, versies: [{ nummer: 4 }] }),
+  };
+  const stand = { afdruk: null, object: { identificatie: "o-1", versies: [{ nummer: 3 }] } };
+  const gekozen = [
+    { soort: "naam", tekst: "Sanne de Boer", bron: "model" },
+    { soort: "naam", tekst: " Sanne ", bron: "medewerker" },
+    { soort: "naam", tekst: "Sanne", bron: "model" },
+    { soort: "telefoon", tekst: "06-1234", bron: "patroon" },
+  ];
+  const r = await anonimiseren.bevestig(adapter, verbinding, stand, gekozen);
+  assert.deepEqual(aanroepen[0], ["registreer", "o-1", [
+    { soort: "naam", waarde: "Sanne de Boer", bron: "model" },
+    { soort: "naam", waarde: "Sanne", bron: "medewerker" },
+    { soort: "telefoon", waarde: "06-1234", bron: "patroon" },
+  ]]);
+  assert.deepEqual(aanroepen[1], ["vervang", [{ van: "Sanne de Boer", naar: "[PERSOON 1]" }, { van: "Sanne", naar: "[PERSOON 2]" }, { van: "06-1234", naar: "[TELEFOON 3]" }]]);
+  // "<i>Sanne</i> de Boer" loopt over opmaak heen: als "Sanne" vervangen, en "de Boer" blijft staan.
+  assert.equal(doc, "<p>[PERSOON 1] belde. [PERSOON 2], <b>[TELEFOON 3]</b> en <i>[PERSOON 2]</i> de Boer.</p>");
+  assert.equal(r.vervangen, 4);
+  assert.equal(r.resterend, 0);
+  assert.deepEqual(aanroepen[2], ["versie", "o-1", doc]);
+  assert.equal(r.stand.object.versies.at(-1).nummer, 4);
+  assert.equal(r.registraties[2].plaatshouder, "[TELEFOON 3]");
+  assert.equal(anonimiseren.telInHtml("<p>Jan de <b>Vries</b> en Jan</p>", [{ van: "Jan" }, { van: "Jan de Vries" }]), 2);
+
+  await assert.rejects(anonimiseren.bevestig(adapter, verbinding, { afdruk: null, object: null }, gekozen), /eerst vast/);
+  const zonder = { ...adapter, vervangTekst: undefined };
+  assert.equal(anonimiseren.kanBijDeBron(zonder), false);
+  await assert.rejects(anonimiseren.bevestig(zonder, verbinding, stand, gekozen), /kan tekst in het document niet vervangen/);
+  await assert.rejects(anonimiseren.bevestig(adapter, verbinding, stand, []), /Kies eerst/);
 });
