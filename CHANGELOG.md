@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.4.0 — 2026-11-09
+
+Anonimiseren in het document: `begin` (het origineel eerst als versie), `vindEnMarkeer` (registreren als voorvertoning en in het document vervangen; opnieuw zoeken laat staan wat de medewerker liet staan), `hervat` (een lopende sessie na heropenen), `voegToe` (selectie of "toch anonimiseren"), `laatStaan` (alle plekken of één), `bevestigInDocument` (nieuwe versie), `zetVersieTerug`, `raadSoort` en `kanInDocument`. Na elke versie schrijft de kern het versienummer als documenteigenschap Versie.
+
 ## 0.3.4 — 2026-11-09
 
 Anonimiseren bij de bron. `anonimiseren.bevestig(adapter, verbinding, stand, gekozen)`:

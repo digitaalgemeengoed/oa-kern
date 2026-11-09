@@ -7,7 +7,7 @@ export * from "./verbinding.js";
 export * as metadateren from "./metadateren.js";
 export * as toegankelijkheid from "./toegankelijkheid.js";
 export * as anonimiseren from "./anonimiseren.js";
-export type { Bevestigd, Gevonden } from "./anonimiseren.js";
+export type { Bevestigd, Gevonden, PiiKaart, Sessie } from "./anonimiseren.js";
 export * from "./vastleggen.js";
 export type { Veld } from "./metadateren.js";
 export type { Wijziging, Uitkomst, Parser } from "./toegankelijkheid.js";

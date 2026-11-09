@@ -179,3 +179,99 @@ test("anonimiseren bij de bron: registreren, in het document vervangen, nieuwe v
   await assert.rejects(anonimiseren.bevestig(zonder, verbinding, stand, gekozen), /kan tekst in het document niet vervangen/);
   await assert.rejects(anonimiseren.bevestig(adapter, verbinding, stand, []), /Kies eerst/);
 });
+
+test("anonimiseren in het document: voorvertoning, laat staan, toevoegen, bevestigen", async () => {
+  const { anonimiseren } = await import("../dist/index.js");
+  const { createHash } = await import("node:crypto");
+  // Een nep-werkomgeving: plaatshouders als {p1:[PERSOON 1]} in de tekst.
+  let tekst = "<p>Sanne de Boer belde Jan. Jan woont op de Kruisweg 1. Op 3 mei.</p>";
+  let volg = 0;
+  const pv = new Set();
+  const plekken = () => [...tekst.matchAll(/\{(p\d+):([^}]+)\}/g)].map((m) => ({ plek: m[1], plaatshouder: m[2], voorvertoning: pv.has(m[1]) }));
+  const eigenschappen = {};
+  const adapter = {
+    werkomgeving: () => ({ id: "t", naam: "t", vermogens: ["inhoud-opleveren", "inhoud-vervangen", "tonen", "pii-markeren", "afdruk-schrijven", "eigenschap-schrijven"] }),
+    leverInhoud: async () => ({ formaat: "html", mediaType: "text/html", codering: "tekst", data: tekst }),
+    markeerPii: async (ms) => {
+      const uit = [];
+      for (const m of [...ms].sort((a, b) => b.van.length - a.van.length))
+        tekst = tekst.replace(new RegExp(`(?<![\\p{L}{:])${m.van}(?![\\p{L}}])`, "gu"), () => {
+          const p = `p${++volg}`;
+          if (m.voorvertoning) pv.add(p);
+          uit.push({ plek: p, plaatshouder: m.plaatshouder, voorvertoning: m.voorvertoning });
+          return `{${p}:${m.plaatshouder}}`;
+        });
+      return uit;
+    },
+    leesPiiPlekken: async () => plekken(),
+    herstelPii: async (ps) => ps.forEach(({ plek, waarde }) => (tekst = tekst.replace(new RegExp(`\\{${plek}:[^}]+\\}`), waarde))),
+    zetPiiDefinitief: async () => pv.clear(),
+    schrijfAfdruk: async (a) => (eigenschappen.afdruk = a),
+    schrijfDocumenteigenschap: async (n, w) => (eigenschappen[n] = w),
+  };
+  const register = [];
+  const aanroepen = [];
+  const sha = (s) => createHash("sha256").update(s).digest("hex");
+  const object = (versies) => ({ identificatie: "o-1", objecttype: { naam: "nota" }, versies });
+  const verbinding = {
+    anonimiseren: async (inhoud) => ({
+      tekst: "Sanne de Boer belde Jan. Jan woont op de Kruisweg 1. Op 3 mei.",
+      blokken: [],
+      standaard: ["naam", "adres"],
+      motor: "nep",
+      treffers: [
+        { id: "a", soort: "naam", tekst: "Sanne de Boer", begin: 0, eind: 13, score: 0.9, bron: "model" },
+        { id: "b", soort: "naam", tekst: "Jan", begin: 20, eind: 23, score: 0.8, bron: "model" },
+        { id: "c", soort: "naam", tekst: "Jan", begin: 25, eind: 28, score: 0.8, bron: "model" },
+        { id: "d", soort: "adres", tekst: "Kruisweg 1", begin: 42, eind: 52, score: 1, bron: "patroon" },
+        { id: "e", soort: "datum", tekst: "3 mei", begin: 57, eind: 62, score: 1, bron: "patroon" },
+      ],
+    }),
+    registreerPii: async (id, items, voorvertoning) => {
+      aanroepen.push(["registreer", items.map((i) => i.waarde), voorvertoning]);
+      const PH = { naam: "PERSOON", adres: "ADRES", datum: "DATUM" };
+      return {
+        plaatshouders: items.map((i) => {
+          let r = register.find((x) => x.soort === i.soort && x.waarde === i.waarde);
+          if (!r) {
+            r = { plaatshouder: `[${PH[i.soort]} ${register.filter((x) => x.soort === i.soort).length + 1}]`, soort: i.soort, categorie: "c1", waarde: i.waarde, status: "voorvertoning", bron: i.bron };
+            register.push(r);
+            return { ...r, nieuw: true };
+          }
+          return { ...r, nieuw: false };
+        }),
+      };
+    },
+    piiRegister: async () => ({ registraties: register, niveau: 1 }),
+    vervallenPii: async (id, ph) => (aanroepen.push(["vervallen", ph]), register.splice(register.findIndex((x) => x.plaatshouder === ph[0]), 1)),
+    onthulPii: async (id, ph) => ({ waarden: ph.map((p) => ({ plaatshouder: p, waarde: register.find((x) => x.plaatshouder === p).waarde })) }),
+    bevestigPii: async (id, v) => (aanroepen.push(["bevestig", v.bronversie, v.behouden, v.inhoud.data]), object([{ nummer: 1 }, { nummer: 2, soort: "anonimisering", bronversie: 1 }])),
+  };
+  const stand = { afdruk: null, object: object([{ nummer: 1, formaat: "html", sha256: sha(tekst) }]) };
+
+  const { sessie } = await anonimiseren.vindEnMarkeer(adapter, verbinding, stand);
+  assert.equal(tekst, "<p>{p1:[PERSOON 1]} belde {p3:[PERSOON 2]}. {p4:[PERSOON 2]} woont op de {p2:[ADRES 1]}. Op 3 mei.</p>");
+  assert.equal(sessie.bronversie, 1);
+  assert.deepEqual(sessie.kaarten.map((k) => [k.plaatshouder, k.status, k.plekken.length]), [["[PERSOON 1]", "voorvertoning", 1], ["[PERSOON 2]", "voorvertoning", 2], ["[ADRES 1]", "voorvertoning", 1], [null, "laat-staan", 0]]);
+
+  // Eén plek van Jan laten staan, daarna het adres helemaal.
+  let s = await anonimiseren.laatStaan(adapter, verbinding, stand, sessie, "[PERSOON 2]", "p4");
+  assert.equal(tekst, "<p>{p1:[PERSOON 1]} belde {p3:[PERSOON 2]}. Jan woont op de {p2:[ADRES 1]}. Op 3 mei.</p>");
+  s = await anonimiseren.laatStaan(adapter, verbinding, stand, s, "[ADRES 1]");
+  assert.ok(tekst.includes("Kruisweg 1"));
+  assert.deepEqual(aanroepen.at(-1), ["vervallen", ["[ADRES 1]"]]);
+  // De datum toch anonimiseren (de kaart die bleef staan).
+  s = await anonimiseren.voegToe(adapter, verbinding, stand, s, { waarde: "3 mei", soort: "datum", bron: "patroon" });
+  assert.ok(tekst.endsWith("Op {p5:[DATUM 1]}.</p>"));
+  assert.equal(s.kaarten.filter((k) => k.status === "laat-staan").length, 1); // het adres
+
+  const r = await anonimiseren.bevestigInDocument(adapter, verbinding, stand, s);
+  const b = aanroepen.find((x) => x[0] === "bevestig");
+  assert.deepEqual(b.slice(0, 3), ["bevestig", 1, ["[PERSOON 1]", "[PERSOON 2]", "[DATUM 1]"]]);
+  assert.equal(r.stand.object.versies.at(-1).nummer, 2);
+  assert.equal(eigenschappen.Versie, "2");
+  assert.equal(plekken().some((p) => p.voorvertoning), false);
+  assert.equal(anonimiseren.raadSoort("06-12345678"), "telefoon");
+  assert.equal(anonimiseren.raadSoort("mantelzorg aan uw moeder"), "gezondheid");
+  assert.equal(anonimiseren.raadSoort("Klaas Bakker"), "naam");
+});

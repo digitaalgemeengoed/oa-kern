@@ -67,6 +67,7 @@ export async function registreer(
   const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) {
     await adapter.schrijfAfdruk(afdruk);
+    await schrijfVersienummer(adapter, afdruk.versie);
     return { object, afdruk };
   }
   return { object, afdruk: null, terugval: "Het stuk is geregistreerd, maar deze werkomgeving kan de identificatie niet in het bestand bewaren." };
@@ -77,9 +78,21 @@ export async function legVersieVast(adapter: Adapter, verbinding: Verbinding, st
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
   const { inhoud, weergave } = await teBewaren(adapter);
   const object = await verbinding.voegVersieToe(stand.object.identificatie, inhoud, weergave);
+  return naVersie(adapter, stand, object);
+}
+
+/** Na een nieuwe versie: de afdruk en het versienummer in het bestand bijwerken. */
+export async function naVersie(adapter: Adapter, stand: Stand, object: ObjectMetStaat): Promise<Stand> {
   const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) await adapter.schrijfAfdruk(afdruk);
+  await schrijfVersienummer(adapter, afdruk.versie);
   return { ...stand, object, afdruk };
+}
+
+/** Het versienummer van het platform als documenteigenschap "Versie" (een veld in de koptekst kan het tonen). */
+export async function schrijfVersienummer(adapter: Adapter, versie: number): Promise<void> {
+  if (!versie || !adapter.schrijfDocumenteigenschap || !heeftVermogen(adapter.werkomgeving(), "eigenschap-schrijven")) return;
+  await adapter.schrijfDocumenteigenschap("Versie", String(versie));
 }
 
 /** Metadata vastleggen tegen de stand die de medewerker zag. */

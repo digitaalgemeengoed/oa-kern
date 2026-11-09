@@ -98,11 +98,42 @@ export class Verbinding {
     return this.vraag<ObjectMetStaat>(VASTLEG.anonimisering(id, nummer), { method: "POST", body: JSON.stringify({ inhoud, overzicht }) });
   }
   /** Persoonsgegevens versleuteld registreren; dezelfde waarde krijgt dezelfde plaatshouder. */
-  registreerPii(id: string, items: PiiInvoer[]) {
+  registreerPii(id: string, items: PiiInvoer[], voorvertoning = false) {
     return this.vraag<{ plaatshouders: { plaatshouder: string; soort: PiiSoort; categorie: PiiCategorie; nieuw: boolean }[] }>(VASTLEG.pii(id), {
       method: "POST",
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, ...(voorvertoning ? { voorvertoning } : {}) }),
     });
+  }
+  /** Voorvertoningen die de medewerker laat staan, uit het register. */
+  vervallenPii(id: string, plaatshouders: string[]) {
+    return this.vraag<PiiRegister>(VASTLEG.piiVervallen(id), { method: "POST", body: JSON.stringify({ plaatshouders }) });
+  }
+  /** Bevestigen: register definitief en het geanonimiseerde document als nieuwe versie. */
+  bevestigPii(id: string, v: { inhoud: Inhoud; weergave?: Inhoud; bronversie: number; behouden: string[] }) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.piiBevestig(id), { method: "POST", body: JSON.stringify(v) });
+  }
+  /** Bevestigde gegevens terugzetten: de waarden, binnen het eigen niveau. */
+  terugzettenPii(id: string, plaatshouders: string[]) {
+    return this.vraag<{ waarden: PiiOnthuld[] }>(VASTLEG.piiTerugzetten(id), { method: "POST", body: JSON.stringify({ plaatshouders }) });
+  }
+  /** Een eerdere versie terugzetten als nieuwe versie (niveau van die versie, met reden). */
+  versieTerugzetten(id: string, nummer: number, reden: string) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.versieTerugzetten(id, nummer), { method: "POST", body: JSON.stringify({ reden }) });
+  }
+  /** De html van een versie: de versie zelf of haar html-weergave. */
+  async versieHtml(id: string, versie: { nummer: number; formaat: string }): Promise<string> {
+    const pad = versie.formaat === "html" ? LEES.inhoud(id, versie.nummer) : LEES.weergave(id, versie.nummer, "html");
+    let r: Response;
+    try {
+      r = await this.doeFetch(`${this.basis}${pad}`, { credentials: "same-origin", headers: { "x-oa-verzoek": "1" } });
+    } catch {
+      throw new VerbindingsFout(0, "niet-bereikbaar", "De assistent kan de server nu niet bereiken.");
+    }
+    if (!r.ok) {
+      const f = (await r.json().catch(() => ({}))) as Partial<Fout>;
+      throw new VerbindingsFout(r.status, f.fout ?? "fout", f.melding ?? `Fout ${r.status}`);
+    }
+    return r.text();
   }
   piiRegister(id: string) {
     return this.vraag<PiiRegister>(LEES.pii(id));
@@ -112,8 +143,8 @@ export class Verbinding {
     return this.vraag<{ waarden: PiiOnthuld[] }>(VASTLEG.piiOnthul(id), { method: "POST", body: JSON.stringify({ plaatshouders }) });
   }
   /** De sleutel van een categorie vernietigen (alleen beheerder): die waarden zijn daarna onleesbaar. */
-  vernietigPii(id: string, categorie: PiiCategorie, reden: string) {
-    return this.vraag<PiiRegister>(VASTLEG.piiVernietig(id), { method: "POST", body: JSON.stringify({ categorie, reden }) });
+  vernietigPii(id: string, categorie: PiiCategorie, reden: string, originelen: "laten" | "beperken" = "laten") {
+    return this.vraag<PiiRegister>(VASTLEG.piiVernietig(id), { method: "POST", body: JSON.stringify({ categorie, reden, originelen }) });
   }
   zoeken(vraag: Zoekvraag) {
     return this.vraag<Zoekantwoord>(LEES.zoeken(vraag));
