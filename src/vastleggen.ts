@@ -74,6 +74,16 @@ export async function registreer(
   return { object, afdruk: null, terugval: "Het stuk is geregistreerd, maar deze werkomgeving kan de identificatie niet in het bestand bewaren." };
 }
 
+/**
+ * Een vergrendeld stuk: de wijziging als voorstel indienen. Het voorstel staat
+ * naast het stuk; een vrijgever maakt er (na goedkeuring) een versie van.
+ */
+export async function dienVoorstelIn(adapter: Adapter, verbinding: Verbinding, stand: Stand, reden: string) {
+  if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
+  const { inhoud, weergave } = await teBewaren(adapter);
+  return verbinding.dienVoorstelIn(stand.object.identificatie, inhoud, weergave, reden);
+}
+
 /** Een nieuwe versie vastleggen; ongewijzigde inhoud levert geen versie op. */
 export async function legVersieVast(adapter: Adapter, verbinding: Verbinding, stand: Stand, type?: Objecttype): Promise<Stand> {
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");

@@ -19,7 +19,18 @@ import {
   type Informatieobject,
   type Zoekvraag,
   type Zoekantwoord,
+  type Classificatiemodel,
+  type Procestype,
+  type SelectielijstResultaat,
+  type Afwijking,
+  type Wijzigingsvoorstel,
 } from "@digitaalgemeengoed/oa-contract";
+
+/** Het classificatiemodel dat nu geldt, met de resultaten uit de selectielijst die de gemeente gebruikt. */
+export interface ClassificatieAntwoord {
+  model: Classificatiemodel | null;
+  selectielijst?: { id: string; naam: string; toelichting: string; procestypen: Procestype[]; resultaten: (SelectielijstResultaat & { afwijking?: Afwijking })[] };
+}
 
 export interface ObjectMetStaat extends Informatieobject {
   volgnummer: number;
@@ -171,6 +182,27 @@ export class Verbinding {
   }
   legMetadataVast(id: string, metadata: Record<string, unknown>, verwachteVolgnummer?: number) {
     return this.vraag<ObjectMetStaat>(VASTLEG.metadata(id), { method: "PUT", body: JSON.stringify({ metadata, verwachteVolgnummer }) });
+  }
+  /** Met de selectielijst (voor Classificeren), of alleen het model. */
+  classificatie(alleenModel = false) {
+    return this.vraag<ClassificatieAntwoord>(alleenModel ? LEES.classificatiemodel : LEES.classificatie);
+  }
+  legClassificatieVast(id: string, keuze: { resultaat: string; attributen?: Record<string, string | boolean>; einddatumProcesobject?: string }, verwachteVolgnummer?: number) {
+    return this.vraag<ObjectMetStaat>(VASTLEG.classificatie(id), { method: "PUT", body: JSON.stringify({ ...keuze, verwachteVolgnummer }) });
+  }
+  /** Bij een vergrendeld stuk: de wijziging als voorstel, naast het stuk. */
+  dienVoorstelIn(id: string, inhoud: Inhoud, weergave: Inhoud | undefined, reden: string) {
+    return this.vraag<Wijzigingsvoorstel>(VASTLEG.voorstel(id), { method: "POST", body: JSON.stringify({ inhoud, weergave, reden }) });
+  }
+  /** Met een object: de voorstellen bij dat stuk. Zonder: de open voorstellen (alleen een vrijgever). */
+  voorstellen(object?: string) {
+    return this.vraag<Wijzigingsvoorstel[]>(LEES.voorstellen(object));
+  }
+  voorstelWeergave(id: string) {
+    return this.vraag<Inhoud>(LEES.voorstelWeergave(id));
+  }
+  beoordeel(id: string, besluit: "goedkeuren" | "afwijzen", toelichting?: string) {
+    return this.vraag<Wijzigingsvoorstel>(VASTLEG.beoordeling(id), { method: "POST", body: JSON.stringify({ besluit, ...(toelichting ? { toelichting } : {}) }) });
   }
   voegVersieToe(id: string, inhoud: Inhoud, weergave?: Inhoud) {
     return this.vraag<ObjectMetStaat>(VASTLEG.versies(id), { method: "POST", body: JSON.stringify({ inhoud, weergave }) });

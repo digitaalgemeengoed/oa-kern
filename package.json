@@ -1,6 +1,6 @@
 {
   "name": "@digitaalgemeengoed/oa-kern",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "De assistentkern van de Office Assistent: modules en vastleggen, zonder framework en zonder toestand.",
   "license": "EUPL-1.2",
   "type": "module",
@@ -20,7 +20,7 @@
     "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
-    "@digitaalgemeengoed/oa-contract": "^0.7.0"
+    "@digitaalgemeengoed/oa-contract": "^0.8.0"
   },
   "devDependencies": {
     "linkedom": "^0.18.15",

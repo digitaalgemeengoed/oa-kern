@@ -385,3 +385,17 @@ test("de afdruk en de documenteigenschappen noemen het metadatamodel en de statu
   // Een stuk met een ouder model: het type van nu zegt niets over dit stuk.
   assert.deepEqual(eigenschappenVan({ ...object, objecttype: { naam: "document", versie: 2 } }, type), { Identificatie: object.identificatie, Versie: "2" });
 });
+
+test("classificeren: voorstellen uit de woorden van het stuk; zoeken op nummer of woord", async () => {
+  const { classificeren } = await import("../dist/index.js");
+  const { SELECTIELIJST_2020: L } = await import("@digitaalgemeengoed/oa-contract/selectielijst");
+  const v = classificeren.suggesties("Wij verlenen u de omgevingsvergunning voor het bouwen van een dakkapel.", "Besluit omgevingsvergunning bouwen", L.resultaten, L.procestypen);
+  assert.equal(v.length, 3);
+  assert.ok(v.some((x) => x.resultaat.id === "11.1.6"), v.map((x) => x.resultaat.id).join());
+  assert.ok(v[0].woorden.length > 0);
+  const s = classificeren.suggesties("Beschikking op uw aanvraag subsidie voor het buurthuis.", "Subsidieaanvraag buurthuis", L.resultaten, L.procestypen);
+  assert.equal(s[0].resultaat.procestype, 8);
+  assert.deepEqual(classificeren.suggesties("", "", L.resultaten, L.procestypen), []);
+  assert.ok(classificeren.zoek(L.resultaten, L.procestypen, "12.2").every((r) => r.id === "12.2" || r.id.startsWith("12.2.")));
+  assert.ok(classificeren.zoek(L.resultaten, L.procestypen, "kappen herplant").some((r) => r.id === "11.1.12"));
+});

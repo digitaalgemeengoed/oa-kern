@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.8.0 — 2026-11-10
+
+- Module `classificeren`: `suggesties` (de assistent stelt drie klassen voor op grond van de woorden in het stuk; omschrijving en procestype tellen zwaarder dan de toelichting), `zoek` (op nummer of woord) en `legVast`.
+- `dienVoorstelIn`: bij een vergrendeld stuk de wijziging als voorstel indienen.
+- `Verbinding`: `classificatie`, `legClassificatieVast`, `dienVoorstelIn`, `voorstellen`, `voorstelWeergave`, `beoordeel`.
+
 ## 0.7.0 — 2026-11-10
 
 - `afdrukVan`: de afdruk in het bestand noemt nu ook de versie en de naam van het metadatamodel.
