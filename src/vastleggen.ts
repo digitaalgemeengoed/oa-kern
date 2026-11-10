@@ -1,4 +1,4 @@
-import { heeftVermogen, type Aard, type Adapter, type Afdruk, type Inhoud, type Objecttype } from "@digitaalgemeengoed/oa-contract";
+import { heeftVermogen, modelVan, rolWaarden, type Aard, type Adapter, type Afdruk, type Inhoud, type Objecttype } from "@digitaalgemeengoed/oa-contract";
 import { opgeschoond } from "./metadateren.js";
 import { VerbindingsFout, type ObjectMetStaat, type Verbinding } from "./verbinding.js";
 
@@ -65,29 +65,64 @@ export async function registreer(
   const { inhoud, weergave } = await teBewaren(adapter);
   // Een persoonlijk stuk heeft geen metadata (het platform weigert die).
   const object = await verbinding.maakObject(objecttype, aard === "persoonlijk" ? {} : opgeschoond(metadata, type), inhoud, weergave, aard);
-  const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
+  const afdruk = afdrukVan(object, type);
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) {
     await adapter.schrijfAfdruk(afdruk);
-    await schrijfVersienummer(adapter, afdruk.versie);
+    await schrijfEigenschappen(adapter, object, type);
     return { object, afdruk };
   }
   return { object, afdruk: null, terugval: "Het stuk is geregistreerd, maar deze werkomgeving kan de identificatie niet in het bestand bewaren." };
 }
 
 /** Een nieuwe versie vastleggen; ongewijzigde inhoud levert geen versie op. */
-export async function legVersieVast(adapter: Adapter, verbinding: Verbinding, stand: Stand): Promise<Stand> {
+export async function legVersieVast(adapter: Adapter, verbinding: Verbinding, stand: Stand, type?: Objecttype): Promise<Stand> {
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
   const { inhoud, weergave } = await teBewaren(adapter);
   const object = await verbinding.voegVersieToe(stand.object.identificatie, inhoud, weergave);
-  return naVersie(adapter, stand, object);
+  return naVersie(adapter, stand, object, type);
 }
 
-/** Na een nieuwe versie: de afdruk en het versienummer in het bestand bijwerken. */
-export async function naVersie(adapter: Adapter, stand: Stand, object: ObjectMetStaat): Promise<Stand> {
-  const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam };
+/**
+ * De afdruk in het bestand: identificatie, versie, en het metadatamodel
+ * (naam en versie van het objecttype) waarmee het stuk is vastgelegd.
+ */
+export function afdrukVan(object: ObjectMetStaat, type?: Objecttype, vorige?: Afdruk | null): Afdruk {
+  const afdruk: Afdruk = { identificatie: object.identificatie, versie: object.versies.at(-1)?.nummer ?? 0, objecttype: object.objecttype.naam, objecttypeVersie: object.objecttype.versie };
+  const model = type && type.versie === object.objecttype.versie ? modelVan(type).naam : vorige && vorige.objecttypeVersie === object.objecttype.versie ? vorige.model : undefined;
+  if (model) afdruk.model = model;
+  return afdruk;
+}
+
+/** Na een nieuwe versie: de afdruk en de documenteigenschappen in het bestand bijwerken. */
+export async function naVersie(adapter: Adapter, stand: Stand, object: ObjectMetStaat, type?: Objecttype): Promise<Stand> {
+  const afdruk = afdrukVan(object, type, stand.afdruk);
   if (adapter.schrijfAfdruk && heeftVermogen(adapter.werkomgeving(), "afdruk-schrijven")) await adapter.schrijfAfdruk(afdruk);
-  await schrijfVersienummer(adapter, afdruk.versie);
+  await schrijfEigenschappen(adapter, object, type);
   return { ...stand, object, afdruk };
+}
+
+/**
+ * De documenteigenschappen die je in het bestand kunt zien (Bestand →
+ * Eigenschappen) en in een veld kunt tonen, zoals in de koptekst:
+ * Identificatie, Versie, Metadatamodel en, als het model een status heeft,
+ * Status. Het platform blijft de bron; dit is een afdruk.
+ */
+export function eigenschappenVan(object: ObjectMetStaat, type?: Objecttype): Record<string, string> {
+  const uit: Record<string, string> = { Identificatie: object.identificatie };
+  const versie = object.versies.at(-1)?.nummer;
+  if (versie) uit.Versie = String(versie);
+  if (type && type.versie === object.objecttype.versie) {
+    const m = modelVan(type);
+    uit.Metadatamodel = `${m.naam}, versie ${m.versie}`;
+    const status = rolWaarden(type.schema, (object.metadata ?? {}) as Record<string, unknown>).status;
+    if (status) uit.Status = status;
+  }
+  return uit;
+}
+
+export async function schrijfEigenschappen(adapter: Adapter, object: ObjectMetStaat, type?: Objecttype): Promise<void> {
+  if (!adapter.schrijfDocumenteigenschap || !heeftVermogen(adapter.werkomgeving(), "eigenschap-schrijven")) return;
+  for (const [naam, waarde] of Object.entries(eigenschappenVan(object, type))) await adapter.schrijfDocumenteigenschap(naam, waarde);
 }
 
 /** Het versienummer van het platform als documenteigenschap "Versie" (een veld in de koptekst kan het tonen). */
@@ -96,10 +131,11 @@ export async function schrijfVersienummer(adapter: Adapter, versie: number): Pro
   await adapter.schrijfDocumenteigenschap("Versie", String(versie));
 }
 
-/** Metadata vastleggen tegen de stand die de medewerker zag. */
-export async function legMetadataVast(verbinding: Verbinding, stand: Stand, metadata: Record<string, unknown>, type?: Objecttype): Promise<Stand> {
+/** Metadata vastleggen tegen de stand die de medewerker zag. Met een adapter: ook de status in het bestand bijwerken. */
+export async function legMetadataVast(verbinding: Verbinding, stand: Stand, metadata: Record<string, unknown>, type?: Objecttype, adapter?: Adapter): Promise<Stand> {
   if (!stand.object) throw new Error("Het stuk is nog niet geregistreerd.");
   const object = await verbinding.legMetadataVast(stand.object.identificatie, opgeschoond(metadata, type), stand.object.volgnummer);
+  if (adapter && stand.afdruk) await schrijfEigenschappen(adapter, object, type);
   return { ...stand, object };
 }
 

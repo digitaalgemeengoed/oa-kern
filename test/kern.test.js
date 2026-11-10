@@ -372,3 +372,16 @@ test("meting: gelaten met reden, toegevoegd, signaalwoord; wat nooit werd voorge
     ],
   });
 });
+
+test("de afdruk en de documenteigenschappen noemen het metadatamodel en de status", async () => {
+  const { afdrukVan, eigenschappenVan, schemaUitConfig, standaardConfig } = { ...(await import("../dist/index.js")), ...(await import("@digitaalgemeengoed/oa-contract")) };
+  const type = { naam: "document", titel: "Document", versie: 3, status: "actief", schema: schemaUitConfig({ ...standaardConfig("rgbz"), naam: "RGBZ Haarlem" }) };
+  const object = { identificatie: "33333333-3333-3333-3333-333333333333", objecttype: { naam: "document", versie: 3 }, versies: [{ nummer: 2 }], metadata: { titel: "Nota", status: "ter vaststelling" } };
+  const a = afdrukVan(object, type);
+  assert.deepEqual(a, { identificatie: object.identificatie, versie: 2, objecttype: "document", objecttypeVersie: 3, model: "RGBZ Haarlem" });
+  assert.equal(afdrukVan(object, undefined, a).model, "RGBZ Haarlem", "zonder type: de naam uit de vorige afdruk");
+  assert.equal(afdrukVan({ ...object, objecttype: { naam: "document", versie: 4 } }, undefined, a).model, undefined, "een ander model: niet de oude naam");
+  assert.deepEqual(eigenschappenVan(object, type), { Identificatie: object.identificatie, Versie: "2", Metadatamodel: "RGBZ Haarlem, versie 3", Status: "ter vaststelling" });
+  // Een stuk met een ouder model: het type van nu zegt niets over dit stuk.
+  assert.deepEqual(eigenschappenVan({ ...object, objecttype: { naam: "document", versie: 2 } }, type), { Identificatie: object.identificatie, Versie: "2" });
+});

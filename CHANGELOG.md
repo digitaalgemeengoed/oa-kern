@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.7.0 — 2026-11-10
+
+- `afdrukVan`: de afdruk in het bestand noemt nu ook de versie en de naam van het metadatamodel.
+- `eigenschappenVan` en `schrijfEigenschappen`: bij registreren, een nieuwe versie en metadata vastleggen schrijft de assistent de documenteigenschappen **Identificatie**, **Versie**, **Metadatamodel** ("RGBZ Haarlem, versie 4") en, als het model een status heeft, **Status**. Te zien bij Bestand → Eigenschappen en te gebruiken in een veld, zoals in de koptekst.
+- `legVersieVast` en `legMetadataVast` nemen het objecttype (en de adapter) aan om die eigenschappen bij te werken.
+
 ## 0.6.0 — 2026-11-09
 
 Bij bevestigen meet de assistent wat de medewerker deed (`meetSessie`) en stuurt die meting mee met `bevestigPii`: wat werd bevestigd, gelaten (met reden) of zelf toegevoegd, met vorm, lengte en signaalwoord, zonder waarden. `laatStaan` neemt een reden aan; een gewijzigde grondslag wordt onthouden (`oorspronkelijk`). Hangt af van oa-contract 0.6.0.
